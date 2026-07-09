@@ -9,6 +9,7 @@ import type {
   LiveStatus,
   ModComponent,
   ModsStatus,
+  RconCommandsResponse,
   WorldSettings,
 } from "@palserver/shared";
 
@@ -102,6 +103,17 @@ export class AgentClient {
 
   live(id: string): Promise<LiveStatus> {
     return this.request(`/api/instances/${id}/live`);
+  }
+
+  rconCommands(id: string): Promise<RconCommandsResponse> {
+    return this.request(`/api/instances/${id}/rcon/commands`);
+  }
+
+  rconExec(id: string, command: string): Promise<{ command: string; output: string }> {
+    return this.request(`/api/instances/${id}/rcon`, {
+      method: "POST",
+      body: JSON.stringify({ command }),
+    });
   }
 
   announce(id: string, message: string): Promise<{ announced: string }> {

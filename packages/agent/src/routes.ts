@@ -1,12 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import {
+  COMMANDS,
   CreateInstanceSchema,
   UpdateSettingsSchema,
   WorldSettingsSchema,
   type AgentInfo,
   type InstanceDetail,
   type InstanceSummary,
+  type RconCommandsResponse,
 } from "@palserver/shared";
+import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
 import { AGENT_VERSION } from "./env.js";
 import type { InstanceStore, InstanceRecord } from "./store.js";
 import type { DriverContext, ServerDriver } from "./driver.js";
@@ -221,6 +224,38 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
     const rec = getOr404((req.params as { id: string }).id);
     await rest.save(rec);
     return { saved: true };
+  });
+
+  // ── RCON console ──
+  app.get("/api/instances/:id/rcon/commands", async (req): Promise<RconCommandsResponse> => {
+    const rec = getOr404((req.params as { id: string }).id);
+    try {
+      requireRcon(rec);
+    } catch (err) {
+      return {
+        available: false,
+        reason: err instanceof Error ? err.message : String(err),
+        paldefender: false,
+        commands: [],
+      };
+    }
+    const hasPalDefender = getModsStatus(rec, ctxOf(rec)).paldefender.installed;
+    // PalDefender knows exactly which commands this build accepts; prefer it
+    // over our static list so plugin updates don't strand the UI.
+    const live = hasPalDefender ? await fetchServerCommands(rec) : null;
+    const commands = COMMANDS.filter((c) => {
+      if (c.source === "builtin") return true;
+      if (!hasPalDefender) return false;
+      return live ? live.includes(c.name) : true;
+    });
+    return { available: true, paldefender: hasPalDefender, commands };
+  });
+
+  app.post("/api/instances/:id/rcon", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { command } = z.object({ command: z.string().min(1).max(500) }).parse(req.body);
+    const output = await rconExec(rec, command);
+    return { command, output };
   });
 
   // ── file browser (native instances; confined to the server directory) ──

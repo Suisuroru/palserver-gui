@@ -94,7 +94,10 @@ Real-server verification needs an x86_64 Linux host.
       (constants from DT_WorldMapUIData). The world-map image is Pocketpair's
       asset, so none is bundled — supply your own via URL or upload
       (kept in localStorage).
-- [ ] RCON passthrough (fallback when the REST API is disabled)
+- [x] RCON console: Source-RCON client in the agent, command palette with
+      parameter forms + raw input. Built-in server commands always; when
+      PalDefender is installed its RCON-capable commands are added, filtered
+      by the live `/getrconcmds` list so plugin updates don't strand the UI.
 - [ ] Save migration: import an existing world into an instance (v1 parity)
 - [ ] Failure detection surfaced in UI (process exits / container crash loops)
 - [ ] Backups & schedules, multi-host aggregation in the UI, TLS guidance, i18n (reuse v1 locales)
