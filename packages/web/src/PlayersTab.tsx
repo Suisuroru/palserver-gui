@@ -5,13 +5,20 @@ import {
   FiSave,
   FiSlash,
   FiLogOut,
+  FiLogIn,
   FiRefreshCw,
   FiEye,
   FiEyeOff,
   FiCopy,
   FiCheck,
 } from "react-icons/fi";
-import { savToMap, type LiveStatus, type RestPlayer } from "@palserver/shared";
+import {
+  savToMap,
+  type KnownPlayer,
+  type LiveStatus,
+  type PresenceEvent,
+  type RestPlayer,
+} from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { btn, btnGhost, card, errorCls, inputCls } from "./ui";
 
@@ -65,6 +72,8 @@ function SteamId({ userId }: { userId: string }) {
 
 export function PlayersTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   const [live, setLive] = useState<LiveStatus | null>(null);
+  const [known, setKnown] = useState<KnownPlayer[]>([]);
+  const [events, setEvents] = useState<PresenceEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -72,7 +81,14 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
 
   const refresh = useCallback(async () => {
     try {
-      setLive(await client.live(instanceId));
+      const [liveStatus, knownPlayers, presenceEvents] = await Promise.all([
+        client.live(instanceId),
+        client.knownPlayers(instanceId).catch(() => []),
+        client.presenceEvents(instanceId, 50).catch(() => []),
+      ]);
+      setLive(liveStatus);
+      setKnown(knownPlayers);
+      setEvents(presenceEvents);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -122,12 +138,18 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
 
   if (!live) return <p className="text-ink-muted">{error ?? "載入中…"}</p>;
 
+  // The server may be down, but the roster and history are recorded by the
+  // agent and stay useful — that's when you look someone up to unban them.
   if (!live.available) {
     return (
-      <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-12 text-center text-ink-muted">
-        <FiUsers className="mx-auto mb-2 size-11" />
-        <p className="font-bold">無法連線到伺服器的 REST API</p>
-        <p className="mt-1 text-[13px]">{live.reason}</p>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-10 text-center text-ink-muted">
+          <FiUsers className="mx-auto mb-2 size-11" />
+          <p className="font-bold">目前無法連線到伺服器的 REST API</p>
+          <p className="mt-1 text-[13px]">{live.reason}</p>
+        </div>
+        <KnownPlayersCard known={known} />
+        <PresenceTimeline events={events} />
       </div>
     );
   }
@@ -232,6 +254,100 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
           </div>
         )}
       </div>
+
+      <KnownPlayersCard known={known} />
+      <PresenceTimeline events={events} />
+    </div>
+  );
+}
+
+const fmtPlaytime = (seconds: number) => {
+  if (seconds < 60) return "不到 1 分";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h} 小時 ${m} 分` : `${m} 分`;
+};
+
+const fmtWhen = (iso: string) => new Date(iso).toLocaleString();
+
+/** Everyone the agent has ever seen here — the roster that outlives logouts. */
+function KnownPlayersCard({ known }: { known: KnownPlayer[] }) {
+  const offline = known.filter((p) => !p.online);
+  return (
+    <div className={`${card} p-0`}>
+      <h3 className="border-b-2 border-line px-5 py-3 text-sm font-extrabold text-ink-muted">
+        歷史玩家({known.length})
+      </h3>
+      {known.length === 0 ? (
+        <p className="px-5 py-8 text-center text-[13px] text-ink-muted">
+          尚未記錄到任何玩家。agent 每 15 秒會記錄一次在線狀態。
+        </p>
+      ) : (
+        <div className="flex flex-col divide-y divide-line">
+          {known.map((p) => (
+            <div key={p.userId} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3">
+              <div className="min-w-40 flex-1">
+                <p className="flex items-center gap-2 text-sm font-extrabold">
+                  {p.name}
+                  {p.online ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-grass/40 bg-grass/15 px-2 py-0.5 text-xs font-bold text-grass">
+                      <span className="size-1.5 rounded-full bg-current" /> 在線
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-ink-muted">離線</span>
+                  )}
+                </p>
+                <p className="text-xs text-ink-muted">
+                  Lv.{p.lastLevel} · 遊玩 {fmtPlaytime(p.playtimeSeconds)} · {p.sessions} 次連線
+                </p>
+                <p className="mt-0.5">
+                  <SteamId userId={p.userId} />
+                </p>
+              </div>
+              <div className="text-right text-xs text-ink-muted">
+                <p>最後上線 {fmtWhen(p.lastSeen)}</p>
+                <p>首次出現 {fmtWhen(p.firstSeen)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {offline.length > 0 && (
+        <p className="border-t-2 border-line px-5 py-2.5 text-xs text-ink-muted">
+          離線玩家仍可在「指令」分頁被選為目標(例如 unban)。
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PresenceTimeline({ events }: { events: PresenceEvent[] }) {
+  return (
+    <div className={`${card} p-0`}>
+      <h3 className="border-b-2 border-line px-5 py-3 text-sm font-extrabold text-ink-muted">
+        上下線紀錄
+      </h3>
+      {events.length === 0 ? (
+        <p className="px-5 py-8 text-center text-[13px] text-ink-muted">尚無紀錄。</p>
+      ) : (
+        <div className="max-h-72 overflow-y-auto">
+          <div className="flex flex-col divide-y divide-line">
+            {events.map((e, i) => (
+              <div key={`${e.at}-${e.userId}-${i}`} className="flex items-center gap-3 px-5 py-2">
+                {e.type === "join" ? (
+                  <FiLogIn className="size-4 shrink-0 text-grass" />
+                ) : (
+                  <FiLogOut className="size-4 shrink-0 text-ink-muted" />
+                )}
+                <span className="flex-1 text-sm font-bold">{e.name}</span>
+                <span className="text-xs text-ink-muted">
+                  {e.type === "join" ? "上線" : "離線"} · {fmtWhen(e.at)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

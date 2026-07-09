@@ -10,6 +10,7 @@ import { ZodError } from "zod";
 import { DATA_DIR, HOST, PORT, AGENT_VERSION } from "./env.js";
 import { loadOrCreateToken, makeAuthHook } from "./auth.js";
 import { InstanceStore } from "./store.js";
+import { PresenceTracker } from "./presence.js";
 import { registerRoutes } from "./routes.js";
 
 const app = Fastify({ logger: true, bodyLimit: 1024 * 1024 * 1024 });
@@ -48,7 +49,10 @@ app.addHook("onRequest", async (req, reply) => {
   }
 });
 
-registerRoutes(app, store);
+const presence = new PresenceTracker(store);
+presence.start();
+
+registerRoutes(app, store, presence);
 
 await app.listen({ host: HOST, port: PORT });
 

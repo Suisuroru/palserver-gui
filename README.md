@@ -87,9 +87,13 @@ Real-server verification needs an x86_64 Linux host.
 - [x] File manager (native backend): browse / edit text files / upload
       (streamed, large paks ok) / delete / mkdir, confined to the instance's
       server directory; "編輯原始檔" opens PalWorldSettings.ini directly
-- [x] Players tab: live metrics, player list (level/ping/coords), kick, ban,
-      broadcast, save-now — proxied through the game's REST API (basic auth,
-      never exposed to the browser)
+- [x] Players tab: live metrics, player list (level/ping/coords, masked Steam
+      IDs), kick, ban, broadcast, save-now — proxied through the game's REST
+      API (basic auth, never exposed to the browser)
+- [x] Presence tracking: the agent polls the roster every 15s and records
+      join/leave events, sessions and playtime per player. The roster outlives
+      logouts, so offline players stay selectable as command targets (/unban)
+      and the history stays readable while the server is down.
 - [x] Live map: players plotted on the game's [-1000, 1000] map square
       (constants from DT_WorldMapUIData). The world-map image is Pocketpair's
       asset, so none is bundled — supply your own via URL or upload

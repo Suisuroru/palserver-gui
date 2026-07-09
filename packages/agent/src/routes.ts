@@ -10,6 +10,7 @@ import {
   type RconCommandsResponse,
 } from "@palserver/shared";
 import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
+import type { PresenceTracker } from "./presence.js";
 import { AGENT_VERSION } from "./env.js";
 import type { InstanceStore, InstanceRecord } from "./store.js";
 import type { DriverContext, ServerDriver } from "./driver.js";
@@ -27,7 +28,11 @@ const drivers: Record<InstanceRecord["backend"], ServerDriver> = {
   docker: dockerOps.dockerDriver,
 };
 
-export function registerRoutes(app: FastifyInstance, store: InstanceStore): void {
+export function registerRoutes(
+  app: FastifyInstance,
+  store: InstanceStore,
+  presence: PresenceTracker,
+): void {
   const ctxOf = (rec: InstanceRecord): DriverContext => ({
     instanceDir: store.instanceDir(rec.id),
   });
@@ -137,12 +142,14 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
   app.post("/api/instances/:id/stop", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     await driverOf(rec).stop(rec, ctxOf(rec));
+    presence.markAllOffline(rec.id);
     return toSummary(rec);
   });
 
   app.post("/api/instances/:id/restart", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     await driverOf(rec).stop(rec, ctxOf(rec));
+    presence.markAllOffline(rec.id);
     await driverOf(rec).start(rec, ctxOf(rec));
     return toSummary(rec);
   });
@@ -188,6 +195,18 @@ export function registerRoutes(app: FastifyInstance, store: InstanceStore): void
   app.get("/api/instances/:id/live", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     return getLiveStatus(rec);
+  });
+
+  app.get("/api/instances/:id/players/known", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return presence.knownPlayers(rec.id);
+  });
+
+  app.get("/api/instances/:id/players/events", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) })
+      .parse(req.query);
+    return presence.events(rec.id, limit);
   });
 
   app.post("/api/instances/:id/announce", async (req) => {

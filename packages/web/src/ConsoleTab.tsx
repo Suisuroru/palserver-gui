@@ -6,8 +6,8 @@ import {
   buildCommand,
   type CommandArg,
   type CommandSpec,
+  type KnownPlayer,
   type RconCommandsResponse,
-  type RestPlayer,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
@@ -18,38 +18,56 @@ interface LogEntry {
   failed: boolean;
 }
 
-/** A command argument. `userid` arguments get a picker of online players
- * (falling back to free text — the target may be offline, e.g. /unban). */
+/** A command argument. `userid` arguments get a picker listing online players
+ * and everyone the agent has seen before — commands like /unban target
+ * players who are by definition not connected. Free text still works for
+ * anyone the agent has never recorded.
+ */
 function ArgField({
   arg,
-  players,
+  roster,
   value,
   onChange,
 }: {
   arg: CommandArg;
-  players: RestPlayer[];
+  roster: KnownPlayer[];
   value: string;
   onChange: (value: string) => void;
 }) {
   const isPlayerArg = arg.name === "userid";
-  const known = players.some((p) => p.userId === value);
+  const online = roster.filter((p) => p.online);
+  const offline = roster.filter((p) => !p.online);
+  const inRoster = roster.some((p) => p.userId === value);
 
   return (
     <label className={labelCls}>
       {arg.label}
       {!arg.required && <span className="font-normal">(選填)</span>}
-      {isPlayerArg && players.length > 0 && (
+      {isPlayerArg && roster.length > 0 && (
         <select
           className={inputCls}
-          value={known ? value : ""}
+          value={inRoster ? value : ""}
           onChange={(e) => onChange(e.target.value)}
         >
-          <option value="">— 從在線玩家選擇 —</option>
-          {players.map((p) => (
-            <option key={p.userId} value={p.userId}>
-              {p.name}(Lv.{p.level})
-            </option>
-          ))}
+          <option value="">— 選擇玩家 —</option>
+          {online.length > 0 && (
+            <optgroup label="在線">
+              {online.map((p) => (
+                <option key={p.userId} value={p.userId}>
+                  {p.name}(Lv.{p.lastLevel})
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {offline.length > 0 && (
+            <optgroup label="離線(歷史玩家)">
+              {offline.map((p) => (
+                <option key={p.userId} value={p.userId}>
+                  {p.name} — 最後上線 {new Date(p.lastSeen).toLocaleDateString()}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       )}
       <input
@@ -57,7 +75,7 @@ function ArgField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={
-          isPlayerArg && players.length > 0 ? "或直接輸入 UserId(離線玩家)" : arg.placeholder
+          isPlayerArg && roster.length > 0 ? "或直接輸入 UserId" : arg.placeholder
         }
       />
     </label>
@@ -75,7 +93,7 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [players, setPlayers] = useState<RestPlayer[]>([]);
+  const [roster, setRoster] = useState<KnownPlayer[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -90,16 +108,15 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
     void load();
   }, [load]);
 
-  // Online players feed the UserId pickers; the REST API may be off, in which
-  // case the fields simply stay free-text.
+  // The agent's roster (online + previously seen) feeds the UserId pickers.
   useEffect(() => {
     const poll = () =>
       client
-        .live(instanceId)
-        .then((live) => setPlayers(live.available ? live.players : []))
-        .catch(() => setPlayers([]));
+        .knownPlayers(instanceId)
+        .then(setRoster)
+        .catch(() => setRoster([]));
     void poll();
-    const timer = setInterval(poll, 10000);
+    const timer = setInterval(poll, 15000);
     return () => clearInterval(timer);
   }, [client, instanceId]);
 
@@ -229,7 +246,7 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
                 <ArgField
                   key={arg.name}
                   arg={arg}
-                  players={players}
+                  roster={roster}
                   value={values[arg.name] ?? ""}
                   onChange={(value) => setValues((v) => ({ ...v, [arg.name]: value }))}
                 />

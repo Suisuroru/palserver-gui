@@ -6,11 +6,13 @@ import type {
   InstanceDetail,
   InstanceStats,
   InstanceSummary,
+  KnownPlayer,
   LiveStatus,
   LogSource,
   LogSourceId,
   ModComponent,
   ModsStatus,
+  PresenceEvent,
   RconCommandsResponse,
   WorldSettings,
 } from "@palserver/shared";
@@ -116,6 +118,14 @@ export class AgentClient {
       method: "POST",
       body: JSON.stringify({ command }),
     });
+  }
+
+  knownPlayers(id: string): Promise<KnownPlayer[]> {
+    return this.request(`/api/instances/${id}/players/known`);
+  }
+
+  presenceEvents(id: string, limit = 100): Promise<PresenceEvent[]> {
+    return this.request(`/api/instances/${id}/players/events?limit=${limit}`);
   }
 
   announce(id: string, message: string): Promise<{ announced: string }> {

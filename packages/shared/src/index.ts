@@ -191,6 +191,28 @@ export function savToMap(savX: number, savY: number): { x: number; y: number } {
   };
 }
 
+/** A player the agent has seen at least once on this instance — the roster
+ * that survives logouts, so offline targets (e.g. /unban) stay selectable. */
+export interface KnownPlayer {
+  userId: string;
+  name: string;
+  accountName: string;
+  online: boolean;
+  firstSeen: string;
+  lastSeen: string;
+  /** completed sessions (a session still in progress isn't counted yet) */
+  sessions: number;
+  playtimeSeconds: number;
+  lastLevel: number;
+}
+
+export interface PresenceEvent {
+  at: string;
+  type: "join" | "leave";
+  userId: string;
+  name: string;
+}
+
 /** Aggregated live view; `available` is false when the server is down or
  * the REST API / admin password isn't configured. */
 export interface LiveStatus {
