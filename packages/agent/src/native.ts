@@ -63,6 +63,46 @@ async function killTree(pid: number): Promise<void> {
   }
 }
 
+/** All (pid, ppid) pairs on the system. */
+async function listAllProcesses(): Promise<Array<{ pid: number; ppid: number }>> {
+  const raw = IS_WIN
+    ? (
+        await execFileP("powershell", [
+          "-NoProfile",
+          "-Command",
+          'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }',
+        ])
+      ).stdout
+    : (await execFileP("ps", ["-A", "-o", "pid=,ppid="])).stdout;
+  return raw
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/).map(Number))
+    .filter(([pid, ppid]) => Number.isInteger(pid) && Number.isInteger(ppid))
+    .map(([pid, ppid]) => ({ pid, ppid }));
+}
+
+/** Transitive children of a process (empty on lookup failure). */
+async function listDescendants(rootPid: number): Promise<number[]> {
+  try {
+    const all = await listAllProcesses();
+    const byParent = new Map<number, number[]>();
+    for (const { pid, ppid } of all) {
+      (byParent.get(ppid) ?? byParent.set(ppid, []).get(ppid)!).push(pid);
+    }
+    const result: number[] = [];
+    const queue = [rootPid];
+    while (queue.length > 0) {
+      for (const child of byParent.get(queue.shift()!) ?? []) {
+        result.push(child);
+        queue.push(child);
+      }
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
 /** Best-effort graceful shutdown through the server's own REST API
  * (saves the world before exiting). Returns true if the request landed. */
 async function requestGracefulShutdown(rec: InstanceRecord): Promise<boolean> {
@@ -246,50 +286,75 @@ export const nativeDriver: ServerDriver = {
   async stats(_rec, ctx) {
     const pid = readPid(ctx);
     if (pid === null || !isAlive(pid)) return null;
+    // PalServer.exe is a thin launcher; the actual server is a child process
+    // (PalServer-Win64-Shipping-Cmd.exe), so aggregate the whole tree.
+    const pids = [pid, ...(await listDescendants(pid))];
     const { default: pidusage } = await import("pidusage");
-    try {
-      const s = await pidusage(pid);
-      return {
-        cpuPercent: s.cpu,
-        memoryBytes: s.memory,
-        memoryLimitBytes: os.totalmem(),
-      } satisfies InstanceStats;
-    } catch {
-      return null;
-    }
+    const usages = await Promise.all(
+      pids.map((p) => pidusage(p).catch(() => null)),
+    );
+    const alive = usages.filter((u) => u !== null);
+    if (alive.length === 0) return null;
+    return {
+      cpuPercent: alive.reduce((sum, u) => sum + u.cpu, 0),
+      memoryBytes: alive.reduce((sum, u) => sum + u.memory, 0),
+      memoryLimitBytes: os.totalmem(),
+    } satisfies InstanceStats;
   },
 
-  async streamLogs(_rec, ctx, onLine, onEnd) {
-    const file = logFile(ctx);
-    if (!fs.existsSync(file)) {
-      onEnd();
-      return () => {};
-    }
-    // Send the tail of what exists, then follow appended bytes.
-    const existing = fs.readFileSync(file, "utf8").split("\n").filter(Boolean);
-    for (const line of existing.slice(-200)) onLine(line);
-
-    let position = fs.statSync(file).size;
-    let buffer = "";
-    const timer = setInterval(() => {
-      let size: number;
-      try {
-        size = fs.statSync(file).size;
-      } catch {
-        clearInterval(timer);
-        onEnd();
-        return;
-      }
-      if (size <= position) return;
-      const stream = fs.createReadStream(file, { start: position, end: size - 1 });
-      position = size;
-      stream.on("data", (chunk) => {
-        buffer += chunk.toString();
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) if (line.length > 0) onLine(line);
-      });
-    }, 500);
-    return () => clearInterval(timer);
+  async streamLogs(rec, ctx, onLine, _onEnd) {
+    // Two sources merged into one stream:
+    //  - the agent-side capture (install progress + server stdout)
+    //  - the game's own UE log, which is where the Windows server actually
+    //    writes (its stdout is nearly silent)
+    // Files may not exist yet (first boot) — the follower attaches when
+    // they appear, so the socket stays open instead of closing early.
+    const gameLog = path.join(serverRoot(rec, ctx), "Pal", "Saved", "Logs", "Pal.log");
+    const stops = [
+      followFile(logFile(ctx), onLine),
+      followFile(gameLog, onLine, 100),
+    ];
+    return () => stops.forEach((stop) => stop());
   },
 };
+
+/** Tail -f a file: replay the last `replay` lines once it exists, then
+ * follow appended bytes. Handles truncation/rotation (position reset) and
+ * files that appear later. Returns a cleanup fn. */
+function followFile(file: string, onLine: (line: string) => void, replay = 200): () => void {
+  let attached = false;
+  let position = 0;
+  let buffer = "";
+  const timer = setInterval(() => {
+    let size: number;
+    try {
+      size = fs.statSync(file).size;
+    } catch {
+      attached = false; // gone (or not yet created) — reattach when it appears
+      return;
+    }
+    if (!attached) {
+      const existing = fs.readFileSync(file, "utf8").split("\n").filter(Boolean);
+      for (const line of existing.slice(-replay)) onLine(line);
+      position = size;
+      buffer = "";
+      attached = true;
+      return;
+    }
+    if (size < position) {
+      // truncated or rotated in place (UE starts a fresh Pal.log per boot)
+      position = 0;
+      buffer = "";
+    }
+    if (size === position) return;
+    const stream = fs.createReadStream(file, { start: position, end: size - 1 });
+    position = size;
+    stream.on("data", (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) if (line.length > 0) onLine(line);
+    });
+  }, 500);
+  return () => clearInterval(timer);
+}
