@@ -162,19 +162,38 @@ export function setLuaModEnabled(
   fs.writeFileSync(file, lines.join("\n"));
 }
 
-async function resolveDownload(component: ModComponent): Promise<{ version: string; url: string }> {
+interface GitRelease {
+  tag_name: string;
+  prerelease: boolean;
+  draft: boolean;
+  assets: { name: string; browser_download_url: string }[];
+}
+
+async function resolveDownload(
+  component: ModComponent,
+  channel: "stable" | "beta",
+): Promise<{ version: string; url: string }> {
   const { repo, asset, envUrl } = GH_REPOS[component];
   const override = process.env[envUrl];
   if (override) return { version: "custom", url: override };
 
-  const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+  // "latest" excludes pre-releases; for beta we scan the release list and take
+  // the newest, whether it's a pre-release or stable.
+  const endpoint =
+    channel === "beta"
+      ? `https://api.github.com/repos/${repo}/releases?per_page=15`
+      : `https://api.github.com/repos/${repo}/releases/latest`;
+  const res = await fetch(endpoint, {
     headers: { "user-agent": "palserver-gui", accept: "application/vnd.github+json" },
   });
   if (!res.ok) throw new Error(`GitHub release lookup failed for ${repo}: HTTP ${res.status}`);
-  const release = (await res.json()) as {
-    tag_name: string;
-    assets: { name: string; browser_download_url: string }[];
-  };
+
+  const body = await res.json();
+  const release: GitRelease | undefined = channel === "beta"
+    ? (body as GitRelease[]).filter((r) => !r.draft).at(0)
+    : (body as GitRelease);
+  if (!release) throw new Error(`no releases found for ${repo}`);
+
   const match = release.assets.find((a) => asset.test(a.name));
   if (!match) {
     throw new Error(
@@ -189,13 +208,14 @@ export async function installComponent(
   rec: InstanceRecord,
   ctx: DriverContext,
   component: ModComponent,
+  channel: "stable" | "beta" = "stable",
 ): Promise<{ version: string }> {
   const status = getModsStatus(rec, ctx);
   if (!status.supported) {
     throw Object.assign(new Error(status.reason ?? "mods unsupported"), { statusCode: 409 });
   }
   const root = serverRoot(rec, ctx);
-  const { version, url } = await resolveDownload(component);
+  const { version, url } = await resolveDownload(component, channel);
 
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);

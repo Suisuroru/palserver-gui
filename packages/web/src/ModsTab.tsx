@@ -45,11 +45,14 @@ export function ModsTab({ client, instanceId }: { client: AgentClient; instanceI
     void refresh();
   }, [refresh]);
 
-  const install = async (component: ModComponent) => {
+  const install = async (component: ModComponent, channel: "stable" | "beta" = "stable") => {
+    if (channel === "beta" && !confirm("測試版(Beta)可能不穩定,但含較新的功能(例如玩家細節 API)。\n\n確定要安裝最新測試版嗎?")) {
+      return;
+    }
     setBusy(component);
     setError(null);
     try {
-      await client.installMod(instanceId, component);
+      await client.installMod(instanceId, component, channel);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -98,16 +101,29 @@ export function ModsTab({ client, instanceId }: { client: AgentClient; instanceI
                     )}
                   </div>
                   <p className="mt-1 text-[13px] text-ink-muted">{c.desc}</p>
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       className={`${btn} inline-flex items-center gap-1.5`}
                       onClick={() => install(c.id)}
                       disabled={busy !== null}
                     >
                       <FiDownload className="size-4" />
-                      {busy === c.id ? "安裝中…" : state.installed ? "更新到最新版" : "安裝"}
+                      {busy === c.id ? "安裝中…" : state.installed ? "更新到最新版" : "安裝穩定版"}
+                    </button>
+                    <button
+                      className={`${btnGhost} inline-flex items-center gap-1.5`}
+                      onClick={() => install(c.id, "beta")}
+                      disabled={busy !== null}
+                      title="安裝最新測試版(含較新功能,可能不穩定)"
+                    >
+                      安裝測試版
                     </button>
                   </div>
+                  {c.id === "paldefender" && (
+                    <p className="mt-2 text-xs text-ink-muted">
+                      「玩家細節(查看帕魯/背包)」需要 v1.8.0 以上的測試版才支援。
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

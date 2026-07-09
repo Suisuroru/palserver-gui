@@ -204,7 +204,10 @@ export function registerRoutes(
     const component = z
       .enum(["ue4ss", "paldefender"])
       .parse((req.params as { component: string }).component);
-    const { version } = await installComponent(rec, ctxOf(rec), component);
+    const { channel } = z
+      .object({ channel: z.enum(["stable", "beta"]).default("stable") })
+      .parse(req.body ?? {});
+    const { version } = await installComponent(rec, ctxOf(rec), component, channel);
     return { installed: component, version, applied: "on-next-restart" };
   });
 

@@ -108,8 +108,15 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/mods`);
   }
 
-  installMod(id: string, component: ModComponent): Promise<{ version: string }> {
-    return this.request(`/api/instances/${id}/mods/${component}/install`, { method: "POST" });
+  installMod(
+    id: string,
+    component: ModComponent,
+    channel: "stable" | "beta" = "stable",
+  ): Promise<{ version: string }> {
+    return this.request(`/api/instances/${id}/mods/${component}/install`, {
+      method: "POST",
+      body: JSON.stringify({ channel }),
+    });
   }
 
   toggleLuaMod(id: string, name: string, enabled: boolean): Promise<ModsStatus> {
