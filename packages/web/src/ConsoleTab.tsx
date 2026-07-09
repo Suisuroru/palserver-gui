@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiTerminal, FiPlay, FiSearch, FiTrash2 } from "react-icons/fi";
+import { FiTerminal, FiPlay, FiSearch, FiTrash2, FiX } from "react-icons/fi";
 import { GiShield } from "react-icons/gi";
 import {
   COMMAND_CATEGORY_LABELS,
@@ -10,7 +10,7 @@ import {
   type RconCommandsResponse,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
-import { maskSteamIdsInText } from "./SteamId";
+import { maskSteamIdsInText, SteamId } from "./SteamId";
 import { EntityPicker } from "./EntityPicker";
 import { useGameData, itemIconUrl, palIconUrl, type GameData } from "./gameData";
 import { btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
@@ -76,44 +76,76 @@ function ArgField({
     );
   }
 
+  // Player args: once chosen, show a masked chip (name if known) instead of a
+  // raw text field, so the full UserId never sits on screen.
+  if (isPlayerArg) {
+    const known = roster.find((p) => p.userId === value);
+    if (value) {
+      return (
+        <label className={labelCls}>
+          {arg.label}
+          {!arg.required && <span className="font-normal">(選填)</span>}
+          <div className={`${inputCls} flex items-center gap-2`}>
+            {known && <span className="font-bold text-ink">{known.name}</span>}
+            <SteamId userId={value} />
+            <button
+              type="button"
+              className="ml-auto text-ink-muted transition hover:text-berry"
+              onClick={() => onChange("")}
+              aria-label="清除"
+            >
+              <FiX className="size-4" />
+            </button>
+          </div>
+        </label>
+      );
+    }
+    return (
+      <label className={labelCls}>
+        {arg.label}
+        {!arg.required && <span className="font-normal">(選填)</span>}
+        {roster.length > 0 && (
+          <select className={inputCls} value="" onChange={(e) => onChange(e.target.value)}>
+            <option value="">— 選擇玩家 —</option>
+            {online.length > 0 && (
+              <optgroup label="在線">
+                {online.map((p) => (
+                  <option key={p.userId} value={p.userId}>
+                    {p.name}(Lv.{p.lastLevel})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {offline.length > 0 && (
+              <optgroup label="離線(歷史玩家)">
+                {offline.map((p) => (
+                  <option key={p.userId} value={p.userId}>
+                    {p.name} — 最後上線 {new Date(p.lastSeen).toLocaleDateString()}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        )}
+        <input
+          className={inputCls}
+          value=""
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={roster.length > 0 ? "或直接輸入 UserId" : arg.placeholder}
+        />
+      </label>
+    );
+  }
+
   return (
     <label className={labelCls}>
       {arg.label}
       {!arg.required && <span className="font-normal">(選填)</span>}
-      {isPlayerArg && roster.length > 0 && (
-        <select
-          className={inputCls}
-          value={inRoster ? value : ""}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">— 選擇玩家 —</option>
-          {online.length > 0 && (
-            <optgroup label="在線">
-              {online.map((p) => (
-                <option key={p.userId} value={p.userId}>
-                  {p.name}(Lv.{p.lastLevel})
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {offline.length > 0 && (
-            <optgroup label="離線(歷史玩家)">
-              {offline.map((p) => (
-                <option key={p.userId} value={p.userId}>
-                  {p.name} — 最後上線 {new Date(p.lastSeen).toLocaleDateString()}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      )}
       <input
         className={inputCls}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={
-          isPlayerArg && roster.length > 0 ? "或直接輸入 UserId" : arg.placeholder
-        }
+        placeholder={arg.placeholder}
       />
     </label>
   );

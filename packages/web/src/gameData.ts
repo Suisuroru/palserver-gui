@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
  * Served as static JSON from /game-data (see public/game-data/CREDITS.md). */
 export interface GameEntity {
   id: string;
+  /** English name (always present) */
   name: string;
+  /** Traditional-Chinese name where known; extend the catalogs to add more */
+  zh?: string;
   /** icon filename within the category folder, if we have artwork for it */
   icon?: string;
 }
+
+/** Preferred display name for the current UI (zh-first, English fallback). */
+export const displayName = (e: GameEntity) => e.zh ?? e.name;
 
 export interface GameData {
   pals: GameEntity[];

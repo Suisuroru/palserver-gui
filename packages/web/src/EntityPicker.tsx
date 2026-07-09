@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiX } from "react-icons/fi";
-import type { GameEntity } from "./gameData";
+import { displayName, type GameEntity } from "./gameData";
 import { inputCls } from "./ui";
 
 /**
@@ -31,7 +31,12 @@ export function EntityPicker({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = q
-      ? catalog.filter((e) => e.name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q))
+      ? catalog.filter(
+          (e) =>
+            e.name.toLowerCase().includes(q) ||
+            e.id.toLowerCase().includes(q) ||
+            e.zh?.includes(query.trim()),
+        )
       : catalog;
     return list.slice(0, 60);
   }, [catalog, query]);
@@ -61,7 +66,7 @@ export function EntityPicker({
             <span className="size-6 shrink-0 rounded bg-card-soft" />
           )}
           <span className="truncate">
-            {selected ? selected.name : value}
+            {selected ? displayName(selected) : value}
             <span className="ml-2 font-mono text-xs text-ink-muted">{value}</span>
           </span>
           <button
@@ -124,7 +129,10 @@ export function EntityPicker({
               ) : (
                 <span className="size-7 shrink-0 rounded bg-card-soft" />
               )}
-              <span className="flex-1 truncate text-sm font-bold">{entity.name}</span>
+              <span className="flex-1 truncate text-sm font-bold">
+                {displayName(entity)}
+                {entity.zh && <span className="ml-1.5 text-xs font-normal text-ink-muted">{entity.name}</span>}
+              </span>
               <span className="font-mono text-xs text-ink-muted">{entity.id}</span>
             </button>
           ))}
