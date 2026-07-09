@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiAlertTriangle, FiFileText, FiShield } from "react-icons/fi";
+import { FiAlertTriangle, FiFileText, FiServer, FiShield } from "react-icons/fi";
 import {
   PALDEFENDER_OPTIONS,
   PD_CATEGORY_LABELS,
@@ -8,6 +8,7 @@ import {
   type PdOptionCategory,
   type PdOptionKey,
   type PdOptionMeta,
+  type PdRestStatus,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { FileEditor } from "./FileManager";
@@ -15,21 +16,35 @@ import { btn, btnGhost, card, errorCls, inputCls } from "./ui";
 
 const KEYS = Object.keys(PALDEFENDER_OPTIONS) as PdOptionKey[];
 const RAW_PATH = "Pal/Binaries/Win64/PalDefender/Config.json";
+const REST_CONFIG_PATH = "Pal/Binaries/Win64/PalDefender/RESTAPI/RESTConfig.json";
 const effective = (values: PalDefenderConfig, k: PdOptionKey) =>
   values[k] ?? PALDEFENDER_OPTIONS[k].default;
 
-export function PalDefenderTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
+export function PalDefenderTab({
+  client,
+  instanceId,
+  running,
+}: {
+  client: AgentClient;
+  instanceId: string;
+  running: boolean;
+}) {
   const [status, setStatus] = useState<PalDefenderConfigStatus | null>(null);
   const [draft, setDraft] = useState<PalDefenderConfig>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [editingRaw, setEditingRaw] = useState(false);
+  const [editingRaw, setEditingRaw] = useState<string | null>(null);
+  const [rest, setRest] = useState<PdRestStatus | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const next = await client.palDefenderConfig(instanceId);
+      const [next, restStatus] = await Promise.all([
+        client.palDefenderConfig(instanceId),
+        client.palDefenderRest(instanceId).catch(() => null),
+      ]);
       setStatus(next);
+      setRest(restStatus);
       setDraft(Object.fromEntries(KEYS.map((k) => [k, effective(next.values, k)])));
       setError(null);
     } catch (err) {
@@ -91,14 +106,31 @@ export function PalDefenderTab({ client, instanceId }: { client: AgentClient; in
         </p>
         <button
           className={`${btnGhost} inline-flex items-center gap-1.5`}
-          onClick={() => setEditingRaw(true)}
+          onClick={() => setEditingRaw(RAW_PATH)}
           disabled={!status.exists}
           title={status.exists ? "直接編輯 Config.json" : "檔案尚未產生"}
         >
-          <FiFileText className="size-4" /> 編輯原始檔
+          <FiFileText className="size-4" /> 編輯 Config.json
         </button>
       </div>
       {!status.exists && status.reason && <p className="text-[13px] text-sun">{status.reason}</p>}
+
+      <RestStatusCard
+        rest={rest}
+        running={running}
+        onEnable={async () => {
+          setError(null);
+          try {
+            await client.enablePalDefenderRest(instanceId);
+            setNotice("已啟用 REST API — 重啟伺服器後,玩家分頁即可查看帕魯與背包");
+            setTimeout(() => setNotice(null), 4000);
+            await refresh();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }}
+        onEditConfig={() => setEditingRaw(REST_CONFIG_PATH)}
+      />
 
       {[...grouped.entries()].map(([category, keys]) => (
         <div key={category} className={card}>
@@ -137,10 +169,65 @@ export function PalDefenderTab({ client, instanceId }: { client: AgentClient; in
         <FileEditor
           client={client}
           instanceId={instanceId}
-          path={RAW_PATH}
-          onClose={() => setEditingRaw(false)}
+          path={editingRaw}
+          onClose={() => setEditingRaw(null)}
           onSaved={refresh}
         />
+      )}
+    </div>
+  );
+}
+
+/** REST API status: managers should know that enabling it unlocks player
+ * detail (pals & inventory). Offers a one-click enable + raw config edit. */
+function RestStatusCard({
+  rest,
+  running,
+  onEnable,
+  onEditConfig,
+}: {
+  rest: PdRestStatus | null;
+  running: boolean;
+  onEnable: () => void;
+  onEditConfig: () => void;
+}) {
+  if (!rest || !rest.installed) return null;
+
+  return (
+    <div className={card}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
+            <FiServer className="size-4 text-pal" /> PalDefender REST API
+            {rest.enabled ? (
+              <span className="rounded-full bg-grass/15 px-2 py-0.5 text-xs font-bold text-grass">已啟用</span>
+            ) : (
+              <span className="rounded-full bg-sun/15 px-2 py-0.5 text-xs font-bold text-sun">未啟用</span>
+            )}
+          </h3>
+          <p className="mt-1 max-w-xl text-[13px] text-ink-muted">
+            {rest.enabled
+              ? rest.hasToken
+                ? "已啟用且存取權杖就緒。玩家分頁點玩家即可查看其帕魯與背包。"
+                : "已啟用。首次查看玩家細節時,agent 會自動建立存取權杖 — 若查詢顯示「權杖尚未生效」,重啟伺服器一次即可。"
+              : rest.reason ?? "啟用後即可在玩家分頁查看玩家的帕魯與背包。"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {rest.configExists && (
+            <button className={`${btnGhost} inline-flex items-center gap-1.5`} onClick={onEditConfig}>
+              <FiFileText className="size-4" /> 編輯 RESTConfig.json
+            </button>
+          )}
+          {!rest.enabled && rest.configExists && (
+            <button className={btn} onClick={onEnable} disabled={running} title={running ? "建議停止後啟用,並重啟以生效" : undefined}>
+              一鍵啟用
+            </button>
+          )}
+        </div>
+      </div>
+      {!rest.enabled && rest.configExists && (
+        <p className="mt-2 text-xs text-ink-muted">啟用後需重啟伺服器才會生效。</p>
       )}
     </div>
   );

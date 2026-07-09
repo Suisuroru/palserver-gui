@@ -147,6 +147,10 @@ export interface PlayerDetail {
 
 /** Whether the agent can reach PalDefender's REST API for this instance. */
 export interface PdRestStatus {
+  /** PalDefender plugin present */
+  installed: boolean;
+  /** RESTConfig.json exists (generated on first boot) */
+  configExists: boolean;
   /** REST enabled in RESTConfig.json */
   enabled: boolean;
   /** the agent has a usable bearer token */

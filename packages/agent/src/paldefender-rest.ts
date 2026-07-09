@@ -59,32 +59,87 @@ async function ensureToken(rec: InstanceRecord, dir: string): Promise<string> {
 
 export function getPdRestStatus(rec: InstanceRecord, ctx: DriverContext): PdRestStatus {
   if (rec.backend !== "native") {
-    return { enabled: false, hasToken: false, reason: "玩家細節僅支援原生模式的實例" };
+    return { installed: false, configExists: false, enabled: false, hasToken: false, reason: "玩家細節僅支援原生模式的實例" };
   }
   const dir = pdDir(rec, ctx);
-  if (!dir) return { enabled: false, hasToken: false, reason: "尚未安裝 PalDefender" };
+  if (!dir) {
+    return { installed: false, configExists: false, enabled: false, hasToken: false, reason: "尚未安裝 PalDefender" };
+  }
+  const configFile = path.join(dir, "RESTAPI", "RESTConfig.json");
+  const configExists = fs.existsSync(configFile);
+  if (!configExists) {
+    return {
+      installed: true, configExists: false, enabled: false, hasToken: false,
+      reason: "PalDefender 尚未生成 REST 設定 — 啟動一次伺服器即會產生",
+    };
+  }
   const { enabled } = restConfig(dir);
   if (!enabled) {
     return {
-      enabled: false,
-      hasToken: false,
-      reason: "PalDefender REST API 未啟用 — 請在 RESTAPI/RESTConfig.json 設 Enabled=true 並重啟",
+      installed: true, configExists: true, enabled: false, hasToken: false,
+      reason: "PalDefender REST API 未啟用 — 啟用後即可查看玩家的帕魯與背包",
     };
   }
   const hasToken = fs.existsSync(path.join(dir, "RESTAPI", "Tokens", TOKEN_FILE));
-  return { enabled: true, hasToken };
+  return { installed: true, configExists: true, enabled: true, hasToken };
 }
+
+/** Flip Enabled=true in RESTConfig.json (preserving the rest of the file). */
+export function enablePdRest(rec: InstanceRecord, ctx: DriverContext): void {
+  const dir = pdDir(rec, ctx);
+  if (!dir) throw Object.assign(new Error("尚未安裝 PalDefender"), { statusCode: 409 });
+  const file = path.join(dir, "RESTAPI", "RESTConfig.json");
+  if (!fs.existsSync(file)) {
+    throw Object.assign(new Error("找不到 RESTConfig.json — 請先啟動一次伺服器"), { statusCode: 409 });
+  }
+  let cfg: Record<string, unknown>;
+  try {
+    cfg = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    throw Object.assign(new Error("RESTConfig.json 格式損壞"), { statusCode: 409 });
+  }
+  cfg.Enabled = true;
+  fs.writeFileSync(file, JSON.stringify(cfg, null, 4));
+}
+
+/** Map PalDefender's error codes to something a manager can act on. */
+const PD_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_TOKEN: "存取權杖尚未生效 — 請重啟伺服器一次(或確認 RCON 已啟用,讓 agent 能自動載入權杖)",
+  MISSING_PERMISSION: "存取權杖權限不足",
+  PLAYER_NOT_FOUND: "此玩家目前不在線上 — PalDefender 只能查詢在線玩家的帕魯與背包",
+  PLAYER_ACCOUNT_NOT_FOUND: "找到玩家但無法載入其存檔資料",
+  REQUEST_TIMEOUT: "PalDefender 回應逾時,請稍後再試",
+  REQUEST_FAILED: "PalDefender 處理請求時發生錯誤",
+};
+
+class PdRestError extends Error {}
 
 async function pdFetch<T>(rec: InstanceRecord, dir: string, endpoint: string): Promise<T> {
   const { port } = restConfig(dir);
   const token = await ensureToken(rec, dir);
-  const res = await fetch(`http://127.0.0.1:${port}/v1/pdapi${endpoint}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(8000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`http://127.0.0.1:${port}/v1/pdapi${endpoint}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    throw new PdRestError("無法連線到 PalDefender REST API — 伺服器可能未在運作中");
+  }
   if (!res.ok) {
-    const code = await res.json().then((b) => b?.Error?.Code).catch(() => null);
-    throw new Error(`PalDefender REST ${endpoint} → HTTP ${res.status}${code ? ` (${code})` : ""}`);
+    // A PalDefender error body carries Error.Code; a bare 404 (no such body)
+    // means the pdapi route itself is missing — likely this PalDefender
+    // version predates the player-detail API, or the token isn't loaded yet.
+    const body = await res.json().catch(() => null);
+    const code = (body as { Error?: { Code?: string } })?.Error?.Code;
+    if (code) throw new PdRestError(PD_ERROR_MESSAGES[code] ?? `PalDefender 回應錯誤(${code})`);
+    if (res.status === 404) {
+      throw new PdRestError(
+        "PalDefender 沒有這個 API 端點 — 你的 PalDefender 版本可能尚未支援玩家細節,或設定/權杖變更後需要「重啟伺服器一次」讓它生效。",
+      );
+    }
+    if (res.status === 401) throw new PdRestError(PD_ERROR_MESSAGES.INVALID_TOKEN);
+    throw new PdRestError(`PalDefender 回應 HTTP ${res.status}`);
   }
   return (await res.json()) as T;
 }

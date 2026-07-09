@@ -31,7 +31,7 @@ import * as saves from "./saves.js";
 import { getEngineSettings, writeEngineSettings } from "./engine-ini.js";
 import { getConfigHealth, regenerateConfig } from "./config-health.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
-import { getPlayerDetail } from "./paldefender-rest.js";
+import { getPlayerDetail, getPdRestStatus, enablePdRest } from "./paldefender-rest.js";
 import fs from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -219,6 +219,17 @@ export function registerRoutes(
   app.get("/api/instances/:id/live", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     return getLiveStatus(rec);
+  });
+
+  app.get("/api/instances/:id/paldefender-rest", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return getPdRestStatus(rec, ctxOf(rec));
+  });
+
+  app.post("/api/instances/:id/paldefender-rest/enable", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    enablePdRest(rec, ctxOf(rec));
+    return { ...getPdRestStatus(rec, ctxOf(rec)), applied: "on-next-restart" };
   });
 
   app.get("/api/instances/:id/players/:identifier/detail", async (req) => {

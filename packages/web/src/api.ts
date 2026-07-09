@@ -20,6 +20,7 @@ import type {
   ModsStatus,
   PalDefenderConfig,
   PalDefenderConfigStatus,
+  PdRestStatus,
   PlayerDetail,
   PresenceEvent,
   RconCommandsResponse,
@@ -182,6 +183,14 @@ export class AgentClient {
 
   saveWorld(id: string): Promise<{ saved: boolean }> {
     return this.request(`/api/instances/${id}/save`, { method: "POST", body: "{}" });
+  }
+
+  palDefenderRest(id: string): Promise<PdRestStatus> {
+    return this.request(`/api/instances/${id}/paldefender-rest`);
+  }
+
+  enablePalDefenderRest(id: string): Promise<PdRestStatus> {
+    return this.request(`/api/instances/${id}/paldefender-rest/enable`, { method: "POST", body: "{}" });
   }
 
   palDefenderConfig(id: string): Promise<PalDefenderConfigStatus> {
