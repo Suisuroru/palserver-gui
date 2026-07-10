@@ -1,0 +1,22 @@
+{
+  "name": "palserver-gui-website",
+  "version": "2.0.0",
+  "private": true,
+  "description": "palserver GUI 官方網站(Next.js 靜態匯出)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "preview": "npx serve out"
+  },
+  "dependencies": {
+    "next": "^15.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}

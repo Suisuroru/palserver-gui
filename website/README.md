@@ -1,37 +1,58 @@
-# palserver GUI 官網(靜態站)
+# palserver GUI 官網(Next.js 靜態站)
 
-單純的靜態網站,一個 `index.html` + `assets/` 圖片,可直接部署到 Zeabur、Vercel、Netlify、GitHub Pages 或任何靜態主機。
+React(Next.js App Router)撰寫、`next build` 直接匯出純靜態 HTML 到 `out/`,可部署到 Zeabur、Vercel、Netlify、GitHub Pages 或任何靜態主機。
 
 ```
 website/
-├─ index.html      完整 HTML 文件(內含 CSS/JS,無需打包)
-├─ assets/*.jpg    截圖
-├─ zbpack.json     Zeabur 靜態設定
-└─ README.md
+├─ app/
+│  ├─ layout.tsx     SEO metadata(title/OG/Twitter/canonical)+ JSON-LD
+│  ├─ page.tsx       頁面組裝 + FAQ JSON-LD
+│  ├─ globals.css    全站樣式(含 RWD 手機優化、深淺色)
+│  ├─ icon.svg       favicon
+│  ├─ robots.ts      → /robots.txt
+│  └─ sitemap.ts     → /sitemap.xml
+├─ components/       各區塊元件(Nav、Hero、Features、Footer…)
+├─ public/assets/    截圖與 io software logo
+├─ next.config.mjs   output: 'export'(純靜態匯出)
+└─ zbpack.json       Zeabur:npm run build → out/
+```
+
+## 本機開發
+
+```sh
+cd website
+npm install
+npm run dev        # http://localhost:3000
+```
+
+## 建置與預覽
+
+```sh
+npm run build      # 產出 out/(純靜態,無需 Node 伺服器)
+npm run preview    # 用靜態伺服器預覽 out/
 ```
 
 ## 部署到 Zeabur
 
-1. 把這個 repo 推到 GitHub(或把 `website/` 這個資料夾單獨做成一個 repo)。
-2. 到 [Zeabur](https://zeabur.com) → 建立 Project → **Deploy from GitHub** → 選這個 repo。
-3. 若用整個 repo:在該服務的 **Settings → Root Directory** 填 `website`(因為站在子資料夾)。
-   若 `website/` 已是獨立 repo 就不用設。
-4. Zeabur 會偵測到 `index.html` + `zbpack.json`,以**靜態站**方式 serve,幾秒就好。
-5. 到 **Domains** 綁自訂網域(例如 `palserver.iosoftware.ai`)或用 Zeabur 給的 `*.zeabur.app`。
+1. 到 [Zeabur](https://zeabur.com) → 建立 Project → **Deploy from GitHub** → 選這個 repo。
+2. 在該服務的 **Settings → Root Directory** 填 `website`。
+3. `zbpack.json` 已指定 `npm run build` + `output_dir: out`,會以**靜態站**方式 serve。
+4. 到 **Domains** 綁 `palserver-gui.iosoftware.ai`(SEO canonical 已指向此網域)。
 
-> `zbpack.json` 的 `{"output_dir": "."}` 告訴 Zeabur 直接把這個資料夾當靜態輸出,不需要 build 步驟。
+## SEO 清單(已內建)
 
-## 本機預覽
-
-任何靜態伺服器都行,例如:
-
-```sh
-cd website
-python3 -m http.server 8080      # 然後開 http://localhost:8080
-```
+- 預先渲染的完整 HTML(靜態匯出, 爬蟲無需執行 JS)
+- title / meta description / keywords / canonical
+- Open Graph + Twitter Card(以 `assets/overview.jpg` 為分享縮圖)
+- JSON-LD 結構化資料:SoftwareApplication、Organization、WebSite、FAQPage
+- `robots.txt` + `sitemap.xml` 自動產生
+- 圖片皆有 `alt` 與寬高(避免 CLS),hero 圖 preload、其餘 lazy load
+- `lang="zh-Hant"`、`theme-color` 深淺色、RWD 手機優化
 
 ## 更新內容
 
-`index.html` 是自給自足的單檔(CSS/JS 都內嵌),直接改即可;截圖放 `assets/`。改完重新部署(Zeabur 連 GitHub 的話 push 就會自動重佈)。
+- 文案/區塊:改 `components/` 下對應元件。
+- SEO 文字:改 `app/layout.tsx` 開頭的 `TITLE` / `DESCRIPTION` 常數。
+- 截圖:放 `public/assets/`,在元件裡以 `/assets/xxx.jpg` 引用(記得填實際寬高)。
 
-深淺色會跟隨瀏覽器/系統設定(`prefers-color-scheme`),不需要額外設定。
+改完 push,Zeabur 會自動重新建置部署。
