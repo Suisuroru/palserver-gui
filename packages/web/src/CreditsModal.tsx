@@ -1,4 +1,4 @@
-import { FiCoffee, FiExternalLink, FiHeart, FiX } from "react-icons/fi";
+import { FiCoffee, FiExternalLink, FiFileText, FiHeart, FiX } from "react-icons/fi";
 import { usePromoConfig } from "./promoConfig";
 import { useI18n } from "./i18n";
 import { Overlay, btn, card } from "./ui";
@@ -60,6 +60,23 @@ export function CreditsModal({ onClose }: { onClose: () => void }) {
             rel="noreferrer"
           >
             <FiCoffee className="size-4" /> Buy Me a Coffee
+          </a>
+        </div>
+
+        {/* 授權:原始碼公開,但禁止商業用途 —— 使用者看得到才算「標明」。 */}
+        <div className="border-t border-line pt-3">
+          <h3 className="mb-1 text-sm font-extrabold">{t("授權")}</h3>
+          <p className="text-[13px] text-ink-muted">
+            {t("本專案原始碼公開,個人與非商業用途可自由使用、修改與散布,")}
+            <b className="text-ink">{t("禁止商業/盈利用途。")}</b>
+          </p>
+          <a
+            className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-muted underline-offset-2 transition hover:text-pal hover:underline"
+            href="https://github.com/Wadoekeani/palserver-gui/blob/main/LICENSE.md"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FiFileText className="size-4" /> PolyForm Noncommercial 1.0.0
           </a>
         </div>
       </div>

@@ -363,6 +363,7 @@ async function run({ canApply, onRestart, log }: UpdateOps): Promise<void> {
     const exeName = path.basename(layout.exePath);
     const newExe = path.join(unpacked, exeName);
     const newWeb = path.join(unpacked, "web");
+    const newLicense = path.join(unpacked, "LICENSE.md");
     if (!fs.existsSync(newExe)) throw new Error(`更新檔裡找不到 ${exeName}`);
 
     phase = "swapping";
@@ -378,6 +379,10 @@ async function run({ canApply, onRestart, log }: UpdateOps): Promise<void> {
         if (fs.existsSync(layout.webDir)) fs.renameSync(layout.webDir, oldWeb);
         fs.cpSync(newWeb, layout.webDir, { recursive: true });
         fs.rmSync(oldWeb, { recursive: true, force: true });
+      }
+      // 授權條款必須留在散布出去的副本旁(PolyForm Notices)。
+      if (fs.existsSync(newLicense)) {
+        fs.copyFileSync(newLicense, path.join(path.dirname(layout.exePath), "LICENSE.md"));
       }
     } catch (err) {
       // 換檔失敗就把舊執行檔放回去,至少維持可用。

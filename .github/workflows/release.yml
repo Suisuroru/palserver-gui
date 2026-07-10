@@ -36,15 +36,17 @@ jobs:
       # 合一版(exe + 前端):esbuild bundle → Node SEA → release/
       - run: pnpm release:exe
 
+      # LICENSE.md 一定要跟著散布:PolyForm Noncommercial 的 Notices 條款要求
+      # 拿到副本的人也拿得到條款(build-sea.mjs 已把它放進 release/)。
       - name: 打包 zip(合一版,Unix)
         if: runner.os != 'Windows'
         shell: bash
-        run: cd release && zip -r ../palserver-agent-${{ matrix.artifact }}.zip palserver-agent web
+        run: cd release && zip -r ../palserver-agent-${{ matrix.artifact }}.zip palserver-agent web LICENSE.md
 
       - name: 打包 zip(合一版,Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path release/palserver-agent.exe, release/web -DestinationPath palserver-agent-${{ matrix.artifact }}.zip
+        run: Compress-Archive -Path release/palserver-agent.exe, release/web, release/LICENSE.md -DestinationPath palserver-agent-${{ matrix.artifact }}.zip
 
       # zip 是給人手動下載的;自我更新讀這包 tar.gz(tar 在 Win10+/mac/Linux 都內建,
       # 且能保留執行權限與 macOS 的 ad-hoc 簽章)。
@@ -63,7 +65,7 @@ jobs:
       - name: 打包純 web 版
         if: matrix.artifact == 'linux'
         shell: bash
-        run: cd packages/web/dist && zip -r ../../../palserver-web.zip .
+        run: cp LICENSE.md packages/web/dist/ && cd packages/web/dist && zip -r ../../../palserver-web.zip .
 
       - uses: actions/upload-artifact@v4
         if: matrix.artifact == 'linux'

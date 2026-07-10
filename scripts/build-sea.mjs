@@ -57,9 +57,15 @@ if (fs.existsSync(webSrc)) {
   fs.cpSync(webSrc, webDst, { recursive: true });
 }
 
-// 7) 清理中間檔
+// 7) 附上授權條款 —— PolyForm Noncommercial 的 Notices 條款要求:拿到軟體副本的人
+// 也要拿到條款(或條款網址)。發佈的壓縮檔因此必須含這一份。
+const licenseDst = path.join(releaseDir, "LICENSE.md");
+fs.copyFileSync(path.join(root, "LICENSE.md"), licenseDst);
+
+// 8) 清理中間檔
 fs.rmSync(blobPath, { force: true });
 fs.rmSync(configPath, { force: true });
 
 console.log(`\nSEA 執行檔 → ${exePath}`);
 console.log(`前端 → ${webDst}`);
+console.log(`授權 → ${licenseDst}`);

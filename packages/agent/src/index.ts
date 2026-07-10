@@ -209,6 +209,9 @@ function printStartupBanner(proto: string, port: number, code: string, apiToken:
   L("  │");
   L(`  │  進階/自動化用的 API token:${apiToken}`);
   if (proto === "https") L("  │  (自簽憑證:瀏覽器會跳安全警告,選「繼續前往」即可)");
+  L("  │");
+  L("  │  授權:PolyForm Noncommercial 1.0.0 —— 個人與非商業用途免費,");
+  L("  │        禁止商業/盈利用途(詳見隨附的 LICENSE.md)");
   L("  └───────────────────────────────────────────────");
   L();
 }
