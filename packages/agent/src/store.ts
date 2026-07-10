@@ -10,9 +10,13 @@ export interface InstanceRecord {
   backend: "native" | "docker";
   flavor: "vanilla" | "modded";
   gamePort: number;
-  /** native only: adopted existing server install; undefined = agent-managed
-   * install under instanceDir/server. */
+  /** native only: custom server root; undefined = agent-managed install
+   * under instanceDir/server. */
   serverDir?: string;
+  /** true = the agent installed (and may re-download) the server at
+   * serverDir; false/undefined = adopted pre-existing install, never
+   * auto-installed into. */
+  serverDirManaged?: boolean;
   settings: WorldSettings;
   createdAt: string;
 }

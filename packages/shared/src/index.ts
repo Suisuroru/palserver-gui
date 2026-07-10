@@ -62,8 +62,10 @@ export const CreateInstanceSchema = z.object({
   flavor: z.enum(["vanilla", "modded"]).default("vanilla"),
   /** UDP port the server listens on (host port for docker). */
   gamePort: z.number().int().min(1024).max(65535).default(8211),
-  /** native only: adopt an existing dedicated-server install instead of
-   * letting the agent download one (e.g. C:\steamcmd\steamapps\common\PalServer). */
+  /** native only: custom server directory (absolute path). An existing
+   * dedicated-server install (e.g. C:\steamcmd\steamapps\common\PalServer)
+   * is adopted as-is; an empty or new directory becomes the install target.
+   * Omit to install under the agent data folder. */
   serverDir: z.string().max(500).optional(),
   settings: z.record(z.union([z.string(), z.number(), z.boolean()])).default({}),
 });

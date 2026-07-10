@@ -16,13 +16,23 @@ const PALWORLD_APP_ID = "2394010";
 const DEPOTDOWNLOADER_VERSION = "3.4.0";
 
 const IS_WIN = process.platform === "win32";
-const SERVER_LAUNCHER = IS_WIN ? "PalServer.exe" : "PalServer.sh";
+export const SERVER_LAUNCHER = IS_WIN ? "PalServer.exe" : "PalServer.sh";
 const CONFIG_PLATFORM_DIR = IS_WIN ? "WindowsServer" : "LinuxServer";
 
 /** The dedicated-server root for an instance: an adopted install if
  * configured, otherwise the agent-managed install under instanceDir. */
 export function serverRoot(rec: InstanceRecord, ctx: DriverContext): string {
   return rec.serverDir ?? path.join(ctx.instanceDir, "server");
+}
+
+/** Classify a user-supplied server dir at creation time: an existing install
+ * is adopted as-is, an empty or not-yet-existing directory becomes the
+ * install target, anything else is rejected (likely a typo — installing
+ * would dump 20GB into the wrong place). */
+export function classifyServerDir(dir: string): "adopt" | "install" | "not-a-server" {
+  if (fs.existsSync(path.join(dir, SERVER_LAUNCHER))) return "adopt";
+  if (!fs.existsSync(dir) || fs.readdirSync(dir).length === 0) return "install";
+  return "not-a-server";
 }
 
 const pidFile = (ctx: DriverContext) => path.join(ctx.instanceDir, "server.pid");
@@ -145,7 +155,9 @@ async function ensureInstalled(
   onLine: (line: string) => void,
 ): Promise<void> {
   const root = serverRoot(rec, ctx);
-  if (rec.serverDir) {
+  if (rec.serverDir && !rec.serverDirManaged) {
+    // Adopted install: never download into it — a missing launcher means the
+    // configured dir is wrong (or the drive is gone), not "please install".
     if (!fs.existsSync(path.join(root, SERVER_LAUNCHER))) {
       throw Object.assign(
         new Error(`"${SERVER_LAUNCHER}" not found in configured server dir: ${root}`),

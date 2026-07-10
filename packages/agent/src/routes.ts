@@ -29,7 +29,7 @@ import {
 import type { InstanceStore, InstanceRecord } from "./store.js";
 import type { DriverContext, ServerDriver } from "./driver.js";
 import * as dockerOps from "./docker.js";
-import { isInstalling, nativeDriver, updateServer } from "./native.js";
+import { SERVER_LAUNCHER, classifyServerDir, isInstalling, nativeDriver, updateServer } from "./native.js";
 import { cachedVersionSummary, getVersionStatus } from "./version.js";
 import { getConnectionInfo } from "./connectivity.js";
 import { getModsStatus, installComponent, installedEnhancements, setLuaModEnabled } from "./mods.js";
@@ -144,6 +144,29 @@ export function registerRoutes(
     if (portTaken) {
       return reply.code(409).send({ error: `game port ${input.gamePort} already in use` });
     }
+    let serverDir: string | undefined;
+    let serverDirManaged: boolean | undefined;
+    if (input.serverDir?.trim()) {
+      if (input.backend !== "native") {
+        return reply.code(400).send({ error: "serverDir is only supported by the native backend" });
+      }
+      if (!path.isAbsolute(input.serverDir.trim())) {
+        return reply.code(400).send({ error: `server dir must be an absolute path: ${input.serverDir}` });
+      }
+      serverDir = path.resolve(input.serverDir.trim());
+      if (store.list().some((r) => r.serverDir && path.resolve(r.serverDir) === serverDir)) {
+        return reply.code(409).send({ error: `server dir already used by another instance: ${serverDir}` });
+      }
+      const kind = classifyServerDir(serverDir);
+      if (kind === "not-a-server") {
+        return reply.code(409).send({
+          error:
+            `"${SERVER_LAUNCHER}" not found in ${serverDir} and the directory is not empty — ` +
+            `point at an existing PalServer install, or at an empty/new folder to install into`,
+        });
+      }
+      serverDirManaged = kind === "install" ? true : undefined;
+    }
     const settings = WorldSettingsSchema.parse({
       ServerName: input.name,
       PublicPort: input.gamePort,
@@ -154,7 +177,8 @@ export function registerRoutes(
       backend: input.backend,
       flavor: input.flavor,
       gamePort: input.gamePort,
-      serverDir: input.serverDir,
+      serverDir,
+      serverDirManaged,
       settings,
     });
     if (rec.backend === "docker") {
