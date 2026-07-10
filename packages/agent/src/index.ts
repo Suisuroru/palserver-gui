@@ -29,10 +29,35 @@ import { dockerDriver } from "./docker.js";
 import { registerRoutes } from "./routes.js";
 import { announceBoot, trackPlayers } from "./telemetry.js";
 import { cleanupOldBinaries, startUpdateChecker, type UpdateOps } from "./self-update.js";
+import { startTray } from "./tray.js";
 
 // 啟動流程包在 async main() 內,讓 entry 沒有頂層 await —— 這樣才能打包成
 // CommonJS 供 Node SEA 免安裝執行檔使用(頂層 await 只能輸出 ESM)。
 async function main() {
+// Windows 合一版:用系統匣圖示取代一直開著的主控台視窗。做法是「用隱藏視窗把自己重啟一份」,
+// 原本這個帶主控台的實例就結束 —— cmd 視窗隨之關閉,背景那份(PALSERVER_TRAY_CHILD=1)負責跑
+// agent 並顯示系統匣。設 PALSERVER_CONSOLE=1 可保留主控台除錯;純 agent 版(無前端)不隱藏。
+if (
+  process.platform === "win32" &&
+  !process.env.PALSERVER_TRAY_CHILD &&
+  !process.env.PALSERVER_CONSOLE &&
+  resolveWebDist() !== null
+) {
+  try {
+    const child = spawn(process.execPath, process.argv.slice(1), {
+      detached: true,
+      windowsHide: true,
+      stdio: "ignore",
+      env: { ...process.env, PALSERVER_TRAY_CHILD: "1" },
+    });
+    child.unref();
+    process.stdout.write("\n  palserver GUI 已在背景啟動,系統匣(右下角)有圖示。這個視窗可以關閉。\n\n");
+    process.exit(0);
+  } catch {
+    /* 重啟失敗就照常在這個主控台繼續跑 */
+  }
+}
+
 const tls = TLS_ENABLED ? await loadOrCreateTlsCert() : null;
 const scheme = tls ? "https" : "http";
 const app = Fastify({
@@ -150,6 +175,23 @@ app.log.info(`palserver-agent v${AGENT_VERSION} · data dir: ${DATA_DIR}`);
 const willOpen = webDist !== null && OPEN_BROWSER;
 printStartupBanner(scheme, PORT, pairingCode, webDist !== null, willOpen);
 if (willOpen) openBrowser(`${scheme}://localhost:${PORT}`);
+
+// 背景那份(主控台已隱藏)顯示系統匣圖示,作為「引擎運作中」的提示與控制入口。
+if (process.env.PALSERVER_TRAY_CHILD) {
+  const tray = startTray({ url: `${scheme}://localhost:${PORT}`, code: pairingCode });
+  if (tray) {
+    const stopTray = () => {
+      try {
+        tray.kill();
+      } catch {
+        /* 已結束 */
+      }
+    };
+    process.on("exit", stopTray);
+    process.on("SIGINT", () => process.exit(0));
+    process.on("SIGTERM", () => process.exit(0));
+  }
+}
 }
 
 // EADDRINUSE 幾乎都是「玩家又點了一次」:別噴一大坨堆疊,給一句友善說明並打開既有的介面。
