@@ -31,6 +31,12 @@ export const IMAGES: Record<"vanilla" | "modded", string> = {
   modded: process.env.PALSERVER_IMAGE_MODDED ?? "palserver/modded:latest",
 };
 
+/** GUI 自己的 GitHub repo — 自我更新從這裡的 Releases 取得新版。 */
+export const GITHUB_REPO = process.env.PALSERVER_GITHUB_REPO ?? "Wadoekeani/palserver-gui";
+
+/** 設 PALSERVER_AUTO_UPDATE=0 完全停用自我更新(連檢查都不做)。 */
+export const AUTO_UPDATE_DISABLED_BY_ENV = process.env.PALSERVER_AUTO_UPDATE === "0";
+
 /** 匿名使用統計收集端(見 PRIVACY.md);部署自己的 worker 後可用環境變數覆寫。 */
 export const STATS_URL =
   process.env.PALSERVER_STATS_URL ?? "https://palserver-stats.iosoftware.workers.dev";

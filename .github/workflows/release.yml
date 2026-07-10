@@ -46,10 +46,18 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path release/palserver-agent.exe, release/web -DestinationPath palserver-agent-${{ matrix.artifact }}.zip
 
+      # zip 是給人手動下載的;自我更新讀這包 tar.gz(tar 在 Win10+/mac/Linux 都內建,
+      # 且能保留執行權限與 macOS 的 ad-hoc 簽章)。
+      - name: 打包 tar.gz(自我更新用)
+        shell: bash
+        run: tar -czf palserver-agent-${{ matrix.artifact }}.tar.gz -C release .
+
       - uses: actions/upload-artifact@v4
         with:
           name: palserver-agent-${{ matrix.artifact }}
-          path: palserver-agent-${{ matrix.artifact }}.zip
+          path: |
+            palserver-agent-${{ matrix.artifact }}.zip
+            palserver-agent-${{ matrix.artifact }}.tar.gz
 
       # 純 web 版(可獨立部署到公開站)—— 只需產一次
       - name: 打包純 web 版
@@ -71,7 +79,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      # 攤平成一層,並附上校驗檔 —— agent 自我更新前一定會比對 SHA256,
+      # 沒有這個檔就拒絕更新(見 packages/agent/src/self-update.ts)。
+      - name: 收集產物並產生 SHA256SUMS.txt
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec mv {} dist/ \;
+          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
       - uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*.zip
+          files: dist/*
           generate_release_notes: true

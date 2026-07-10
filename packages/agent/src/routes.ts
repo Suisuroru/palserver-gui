@@ -42,6 +42,7 @@ import { getConfigHealth, regenerateConfig } from "./config-health.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
 import { getPlayerDetail, getPdRestStatus, setPdRestEnabled, provisionPdToken } from "./paldefender-rest.js";
 import { setTelemetryEnabled, telemetryStatus, track } from "./telemetry.js";
+import { applyUpdate, getUpdateStatus, setUpdatePrefs, type UpdateOps } from "./self-update.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -60,6 +61,7 @@ export function registerRoutes(
   scheduler: BackupScheduler,
   supervisor: RestartSupervisor,
   auth: AuthContext,
+  updateOps: UpdateOps,
 ): void {
   const ctxOf = (rec: InstanceRecord): DriverContext => ({
     instanceDir: store.instanceDir(rec.id),
@@ -112,6 +114,42 @@ export function registerRoutes(
       authenticated,
       platform: process.platform,
     };
+  });
+
+  // GUI 自我更新(對接 GitHub Releases)。?force=1 略過 6 小時的檢查快取。
+  app.get("/api/update", async (req) => {
+    const force = (req.query as { force?: string }).force === "1";
+    return getUpdateStatus(force);
+  });
+
+  app.put("/api/update/prefs", async (req) => {
+    const patch = z
+      .object({
+        autoCheck: z.boolean().optional(),
+        autoApply: z.boolean().optional(),
+        channel: z.enum(["stable", "prerelease"]).optional(),
+      })
+      .parse(req.body);
+    setUpdatePrefs(patch);
+    return getUpdateStatus();
+  });
+
+  // 換檔會關掉這個 HTTP server 並重啟行程,所以先把 202 送出去,再開始動工;
+  // 前端輪詢 GET /api/update 看 phase 與 lastError。
+  app.post("/api/update/apply", async (req, reply) => {
+    const status = await getUpdateStatus(true);
+    if (!status.supported) return reply.code(400).send({ error: status.reason ?? "不支援自我更新" });
+    if (!status.updateAvailable) return reply.code(409).send({ error: "已經是最新版本" });
+    if (status.phase !== "idle") return reply.code(409).send({ error: "更新已在進行中" });
+    const blocked = updateOps.canApply();
+    if (blocked) return reply.code(409).send({ error: blocked });
+
+    reply.code(202).send({ applying: true, latestVersion: status.latestVersion });
+    setImmediate(() => {
+      // 失敗會記在 status.lastError,這裡吞掉避免變成未處理的 rejection。
+      void applyUpdate(updateOps).catch(() => {});
+    });
+    return reply;
   });
 
   // 匿名使用統計(遙測)開關。收集內容與原則見 PRIVACY.md;envDisabled=true 表示

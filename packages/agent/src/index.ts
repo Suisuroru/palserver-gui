@@ -22,10 +22,11 @@ import { PresenceTracker } from "./presence.js";
 import { BackupScheduler } from "./backup-scheduler.js";
 import { RestartSupervisor } from "./supervisor.js";
 import { fetchLatest } from "./version.js";
-import { nativeDriver } from "./native.js";
+import { isInstalling, nativeDriver } from "./native.js";
 import { dockerDriver } from "./docker.js";
 import { registerRoutes } from "./routes.js";
 import { announceBoot, trackPlayers } from "./telemetry.js";
+import { cleanupOldBinaries, startUpdateChecker, type UpdateOps } from "./self-update.js";
 
 // 啟動流程包在 async main() 內,讓 entry 沒有頂層 await —— 這樣才能打包成
 // CommonJS 供 Node SEA 免安裝執行檔使用(頂層 await 只能輸出 ESM)。
@@ -41,6 +42,9 @@ const token = loadOrCreateToken();
 const pairingCode = loadOrCreatePairingCode();
 const auth: AuthContext = { token, pairingCode, requireToken: REQUIRE_TOKEN };
 const store = new InstanceStore();
+
+// 上次自我更新換下來的舊執行檔(Windows 當下刪不掉)現在可以清了。
+cleanupOldBinaries();
 
 // File uploads stream straight to disk (see PUT /files/upload), so hand the
 // raw request through instead of buffering it into a body.
@@ -119,9 +123,22 @@ const supervisor = new RestartSupervisor(store, (rec) =>
 );
 supervisor.start();
 
-registerRoutes(app, store, presence, scheduler, supervisor, auth);
+// 自我更新會整個換掉執行檔並重啟行程。遊戲伺服器是 detached 生成的、不受影響,
+// 但 DepotDownloader 是 agent 的子行程 —— 安裝到一半重啟會把它砍掉。
+const updateOps: UpdateOps = {
+  canApply: () =>
+    store.list().some((rec) => isInstalling(rec.id))
+      ? "有伺服器正在安裝檔案,請等安裝完成再更新"
+      : null,
+  onRestart: () => app.close(),
+  log: (msg) => app.log.info(`[update] ${msg}`),
+};
+
+registerRoutes(app, store, presence, scheduler, supervisor, auth, updateOps);
 
 await app.listen({ host: HOST, port: PORT });
+
+startUpdateChecker(updateOps);
 
 app.log.info(`palserver-agent v${AGENT_VERSION} · data dir: ${DATA_DIR}`);
 printStartupBanner(scheme, PORT, pairingCode, token);

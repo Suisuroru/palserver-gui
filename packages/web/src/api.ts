@@ -1,5 +1,7 @@
 import type {
   AgentInfo,
+  AgentUpdatePrefs,
+  AgentUpdateStatus,
   BackupInfo,
   BackupSchedule,
   ConfigHealth,
@@ -132,6 +134,20 @@ export class AgentClient {
   /** 這台 agent 的可連 IPv4 位址,用來組給其他裝置的登入連結。 */
   agentAddresses(): Promise<{ addresses: { ip: string; tailscale: boolean }[] }> {
     return this.request("/api/addresses");
+  }
+
+  /** GUI 自我更新狀態(force=true 略過 agent 端的 6 小時檢查快取)。 */
+  updateStatus(force = false): Promise<AgentUpdateStatus> {
+    return this.request(`/api/update${force ? "?force=1" : ""}`);
+  }
+
+  setUpdatePrefs(patch: Partial<Omit<AgentUpdatePrefs, "envDisabled">>): Promise<AgentUpdateStatus> {
+    return this.request("/api/update/prefs", { method: "PUT", body: JSON.stringify(patch) });
+  }
+
+  /** 開始更新。agent 會下載、驗證、換檔後重啟自己 —— 之後輪詢 updateStatus()。 */
+  applyUpdate(): Promise<{ applying: boolean; latestVersion: string | null }> {
+    return this.request("/api/update/apply", { method: "POST" });
   }
 
   /** 匿名使用統計(遙測)目前狀態。envDisabled=true 表示被環境變數強制停用。 */

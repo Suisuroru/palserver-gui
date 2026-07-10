@@ -22,6 +22,13 @@ palserver GUI(下稱「本軟體」)由 io software(開發者 Eason Lu / Dalufis
 另外,「GUI 總下載數」取自 GitHub Releases 的公開統計(GitHub 提供的下載次數),
 與你的使用行為無關。
 
+## 自動更新檢查
+
+若啟用自動更新檢查(預設開啟),agent 會定期向 **GitHub** 查詢最新的 release 列表。
+這個請求不含任何識別資訊,但 GitHub 作為服務提供者會看到你的 IP 位址
+(適用 GitHub 自己的隱私權政策)。可在「設定」→「GUI 更新」關閉,或設定環境變數
+`PALSERVER_AUTO_UPDATE=0` 完全停用。
+
 ## 我們不收集什麼
 
 - 不記錄、不儲存你的 IP 位址(傳輸經過 Cloudflare 網路,但我們的程式不讀取、不落地)

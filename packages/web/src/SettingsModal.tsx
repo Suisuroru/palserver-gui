@@ -3,6 +3,7 @@ import { FiX, FiCopy, FiCheck, FiRefreshCw, FiSmartphone, FiKey, FiWifi, FiTrash
 import type { AgentClient, Connection, TelemetryStatus } from "./api";
 import { copyText } from "./clipboard";
 import { PrivacyModal } from "./PrivacyModal";
+import { UpdateCard } from "./UpdateCard";
 import { Overlay, card, btn, btnGhost } from "./ui";
 
 /**
@@ -79,7 +80,10 @@ export function SettingsModal({
 
   return (
     <Overlay onClose={onClose}>
-      <div className={`${card} flex w-[540px] max-w-full flex-col gap-4`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`${card} flex max-h-[85vh] w-[540px] max-w-full flex-col gap-4 overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
             <FiSmartphone className="size-5 text-pal" /> 設定
@@ -150,6 +154,9 @@ export function SettingsModal({
               </p>
             ))}
         </div>
+
+        {/* GUI 自我更新(對接 GitHub Releases) */}
+        <UpdateCard client={client} />
 
         {/* 匿名使用統計 */}
         {telemetry && (

@@ -475,6 +475,42 @@ export interface AgentInfo {
   platform: string;
 }
 
+/** GUI 自我更新的偏好設定(存在 agent 的 data dir)。 */
+export interface AgentUpdatePrefs {
+  /** 定期到 GitHub 查有沒有新版(只查、不裝)。 */
+  autoCheck: boolean;
+  /** 查到新版就自動裝好並重啟 agent。預設關閉 —— 更新是使用者的決定。 */
+  autoApply: boolean;
+  /** prerelease 也算數(alpha/beta 使用者)。 */
+  channel: "stable" | "prerelease";
+  /** true = 被 PALSERVER_AUTO_UPDATE=0 強制停用,以上開關無效。 */
+  envDisabled: boolean;
+}
+
+/** 自我更新的階段;idle 以外都代表 applyUpdate() 正在跑。 */
+export type UpdatePhase = "idle" | "downloading" | "verifying" | "extracting" | "swapping" | "restarting";
+
+export interface AgentUpdateStatus {
+  /** 只有免安裝執行檔(SEA)能自我更新;開發模式 / npm 安裝不行。 */
+  supported: boolean;
+  /** supported=false 或檢查失敗時的說明。 */
+  reason?: string;
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+  releaseNotes: string | null;
+  publishedAt: string | null;
+  downloadSizeBytes: number | null;
+  checkedAt: string | null;
+  phase: UpdatePhase;
+  /** downloading 階段的進度 0–100,其他階段為 null。 */
+  progress: number | null;
+  /** 上次更新失敗的原因(成功或沒跑過為 null)。 */
+  lastError: string | null;
+  prefs: AgentUpdatePrefs;
+}
+
 export interface ApiError {
   error: string;
 }
