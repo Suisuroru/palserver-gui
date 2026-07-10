@@ -1,12 +1,10 @@
-export default function Footer() {
+import type { Dictionary } from '@/i18n/dictionaries';
+
+export default function Footer({ d }: { d: Dictionary['footer'] }) {
   return (
     <footer>
       <div className="wrap">
-        <a
-          className="flogo"
-          href="https://iosoftware.ai"
-          aria-label="io software 官方網站"
-        >
+        <a className="flogo" href="https://iosoftware.ai" aria-label="io software">
           <img
             src="/assets/iosoftware-logo.svg"
             alt="io software"
@@ -17,18 +15,16 @@ export default function Footer() {
           />
         </a>
         <p>
-          由{' '}
+          {d.madePre}
           <a className="pal" style={{ fontWeight: 700 }} href="https://github.com/Dalufishe">
             Eason Lu (Dalufish)
-          </a>{' '}
-          與核心團隊用愛製作 ·{' '}
+          </a>
+          {d.madeMid}
           <a className="pal" style={{ fontWeight: 700 }} href="https://iosoftware.ai">
             io software
           </a>
         </p>
-        <span>
-          palserver GUI 2.0 · 開源免費 · 僅限非商業使用(PolyForm Noncommercial), 不得用於營利
-        </span>
+        <span>{d.license}</span>
       </div>
     </footer>
   );

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>palserver GUI</title>
+    <!-- 沒有 JS 時,退回繁中版。 -->
+    <noscript><meta http-equiv="refresh" content="0; url=/zh/" /></noscript>
+    <link rel="canonical" href="https://palserver-gui.iosoftware.ai/zh/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://palserver-gui.iosoftware.ai/zh/" />
+    <link rel="alternate" hreflang="en" href="https://palserver-gui.iosoftware.ai/en/" />
+    <link rel="alternate" hreflang="ja" href="https://palserver-gui.iosoftware.ai/ja/" />
+    <link rel="alternate" hreflang="x-default" href="https://palserver-gui.iosoftware.ai/zh/" />
+    <script>
+      // 依瀏覽器語言導向對應語系,保留使用者原本要去的錨點。
+      (function () {
+        var l = (navigator.language || 'zh').toLowerCase();
+        var target = l.indexOf('ja') === 0 ? 'ja' : l.indexOf('en') === 0 ? 'en' : 'zh';
+        location.replace('/' + target + '/' + location.hash);
+      })();
+    </script>
+  </head>
+  <body>
+    <p style="font-family: system-ui, sans-serif; padding: 24px">
+      前往 palserver GUI… / Redirecting… <a href="/zh">/zh</a>
+    </p>
+  </body>
+</html>
