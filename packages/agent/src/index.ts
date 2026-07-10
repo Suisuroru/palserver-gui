@@ -2,13 +2,14 @@
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { ZodError } from "zod";
-import { DATA_DIR, HOST, PORT, AGENT_VERSION, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED } from "./env.js";
+import { DATA_DIR, HOST, PORT, AGENT_VERSION, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER } from "./env.js";
 import {
   loadOrCreateToken,
   loadOrCreatePairingCode,
@@ -34,7 +35,9 @@ async function main() {
 const tls = TLS_ENABLED ? await loadOrCreateTlsCert() : null;
 const scheme = tls ? "https" : "http";
 const app = Fastify({
-  logger: true,
+  // 只留警告與錯誤 —— 一般啟動與每次 API 請求的 JSON log 對雙擊使用的玩家是雜訊,
+  // 乾淨的啟動說明改由 printStartupBanner() 印出。出問題時 warn/error 仍會顯示。
+  logger: { level: "warn" },
   bodyLimit: 1024 * 1024 * 1024,
   ...(tls ? { https: { key: tls.key, cert: tls.cert } } : {}),
 });
@@ -141,10 +144,44 @@ await app.listen({ host: HOST, port: PORT });
 startUpdateChecker(updateOps);
 
 app.log.info(`palserver-agent v${AGENT_VERSION} · data dir: ${DATA_DIR}`);
-printStartupBanner(scheme, PORT, pairingCode, token);
+
+// 只有「合一版」(內含前端)自動開網頁才有意義;純 agent 版打開只會看到 API。
+const willOpen = webDist !== null && OPEN_BROWSER;
+printStartupBanner(scheme, PORT, pairingCode, webDist !== null, willOpen);
+if (willOpen) openBrowser(`${scheme}://localhost:${PORT}`);
 }
 
-void main();
+// EADDRINUSE 幾乎都是「玩家又點了一次」:別噴一大坨堆疊,給一句友善說明並打開既有的介面。
+void main().catch((err: NodeJS.ErrnoException) => {
+  if (err?.code === "EADDRINUSE") {
+    const url = `http://localhost:${PORT}`;
+    process.stdout.write(
+      `\n  palserver GUI 已經在執行了(埠 ${PORT} 已被使用),不用再開一個。\n` +
+        `  直接打開管理介面即可:${url}\n\n`,
+    );
+    if (OPEN_BROWSER) openBrowser(url);
+    process.exit(0);
+  }
+  process.stderr.write(`\n  palserver GUI agent 啟動失敗:${err?.message ?? String(err)}\n\n`);
+  process.exit(1);
+});
+
+/** 盡力打開系統預設瀏覽器到指定網址;headless / 無瀏覽器就安靜略過,絕不讓它拖垮啟動。 */
+function openBrowser(url: string): void {
+  try {
+    const [cmd, args] =
+      process.platform === "win32"
+        ? ["cmd", ["/c", "start", "", url]]
+        : process.platform === "darwin"
+          ? ["open", [url]]
+          : ["xdg-open", [url]];
+    const child = spawn(cmd, args as string[], { stdio: "ignore", detached: true });
+    child.on("error", () => {});
+    child.unref();
+  } catch {
+    /* best-effort */
+  }
+}
 
 /**
  * 找出要 serve 的 web/dist,支援三種執行情境:
@@ -182,36 +219,31 @@ function localAddresses(): { ip: string; tailscale: boolean }[] {
   return out.sort((a, b) => Number(b.tailscale) - Number(a.tailscale));
 }
 
-/** 玩家友善的啟動說明:本機直連、區網/VPN 位址、以及邀請朋友的一次性設定連結。 */
-function printStartupBanner(proto: string, port: number, code: string, apiToken: string): void {
-  const addrs = localAddresses();
-  const remote = addrs[0]; // 優先 Tailscale/VPN,否則第一個區網位址
+/**
+ * 精簡的啟動說明:只留玩家真正需要的三行 —— 本機管理網址、邀朋友的設定連結、配對碼。
+ * 完整的 token / 各網卡位址 / 授權條款都改到 GUI 內的設定頁與隨附檔案,不再洗版。
+ */
+function printStartupBanner(
+  proto: string,
+  port: number,
+  code: string,
+  hasWeb: boolean,
+  willOpen: boolean,
+): void {
+  const remote = localAddresses()[0]; // 優先 Tailscale/VPN,否則第一個區網位址
   const L = (s = "") => process.stdout.write(s + "\n");
   L();
-  L("  ┌───────────────────────────────────────────────");
-  L("  │  palserver GUI agent 已啟動 🐾");
-  L("  │");
-  L(`  │  本機管理(免密碼,直接打開):`);
-  L(`  │      ${proto}://localhost:${port}`);
-  if (addrs.length) {
-    L("  │");
-    L("  │  同一區網 / VPN 的裝置可連:");
-    for (const a of addrs) L(`  │      ${proto}://${a.ip}:${port}${a.tailscale ? "   (Tailscale)" : ""}`);
-  }
-  L("  │");
-  L("  │  邀請朋友遠端連線 —— 把這條連結傳給他:");
-  if (remote) {
-    L(`  │      ${proto}://${remote.ip}:${port}/?setup=${code}`);
+  L("  palserver GUI 已啟動。請保持這個視窗開著(關掉就會停止伺服器管理)。");
+  L();
+  if (hasWeb) {
+    L(`  在這台電腦管理: ${proto}://localhost:${port}${willOpen ? "   (正在自動開啟瀏覽器…)" : ""}`);
   } else {
-    L(`  │      (先連上 VPN 取得對外位址)，配對碼:${code}`);
+    L(`  API 位址(此版本未內含網頁介面): ${proto}://localhost:${port}`);
   }
-  L(`  │  或請對方在網頁輸入配對碼:${code}`);
-  L("  │");
-  L(`  │  進階/自動化用的 API token:${apiToken}`);
-  if (proto === "https") L("  │  (自簽憑證:瀏覽器會跳安全警告,選「繼續前往」即可)");
-  L("  │");
-  L("  │  授權:PolyForm Noncommercial 1.0.0 —— 個人與非商業用途免費,");
-  L("  │        禁止商業/盈利用途(詳見隨附的 LICENSE.md)");
-  L("  └───────────────────────────────────────────────");
+  if (remote) {
+    L(`  邀朋友 / 其他裝置: ${proto}://${remote.ip}:${port}/?setup=${code}`);
+  }
+  L(`  配對碼: ${code}   (在別的裝置連線時要用)`);
+  if (proto === "https") L("  自簽憑證會跳安全警告,選「繼續前往」即可。");
   L();
 }

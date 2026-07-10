@@ -25,6 +25,9 @@ export const WEB_ORIGINS = (process.env.PALSERVER_WEB_ORIGINS ?? "")
 /** 設 =1 以 HTTPS 監聽(自簽憑證自動生成於 data-dir/tls,或放自己的憑證進去)。 */
 export const TLS_ENABLED = process.env.PALSERVER_TLS === "1";
 
+/** 啟動時自動打開瀏覽器到本機管理介面;當服務/headless 執行時設 PALSERVER_NO_OPEN=1 關閉。 */
+export const OPEN_BROWSER = process.env.PALSERVER_NO_OPEN !== "1";
+
 /** Docker images used for each flavor; override to pin versions or use a registry. */
 export const IMAGES: Record<"vanilla" | "modded", string> = {
   vanilla: process.env.PALSERVER_IMAGE_VANILLA ?? "palserver/vanilla:latest",
