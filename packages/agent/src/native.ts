@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import extractZip from "extract-zip";
 import type { InstanceStats, InstanceStatus } from "@palserver/shared";
 import type { DriverContext, ServerDriver } from "./driver.js";
 import type { InstanceRecord } from "./store.js";
@@ -141,8 +142,9 @@ async function ensureDepotDownloader(): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`failed to download DepotDownloader: HTTP ${res.status}`);
   fs.writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
-  // tar on Windows 10+ and macOS is bsdtar, which extracts zip archives.
-  await execFileP("tar", ["-xf", zipPath, "-C", toolsDir]);
+  // Plain `tar` can't extract zip on most Linux distros (GNU tar has no zip
+  // support; only bsdtar on Windows 10+/macOS does), so use a JS zip reader.
+  await extractZip(zipPath, { dir: toolsDir });
   fs.rmSync(zipPath);
   if (!IS_WIN) fs.chmodSync(bin, 0o755);
   return bin;
@@ -250,10 +252,14 @@ async function getNativeStatus(
 
 function spawnServer(rec: InstanceRecord, ctx: DriverContext): void {
   writeIni(rec, ctx);
+  const launcher = path.join(serverRoot(rec, ctx), SERVER_LAUNCHER);
+  // DepotDownloader (and adopted installs copied from elsewhere) don't
+  // preserve/set the executable bit on Linux.
+  if (!IS_WIN) fs.chmodSync(launcher, 0o755);
   fs.appendFileSync(logFile(ctx), "[palserver] starting PalServer...\n");
   const out = fs.openSync(logFile(ctx), "a");
   const child = spawn(
-    path.join(serverRoot(rec, ctx), SERVER_LAUNCHER),
+    launcher,
     [`-port=${rec.gamePort}`, "-publiclobby"],
     {
       cwd: serverRoot(rec, ctx),

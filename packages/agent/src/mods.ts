@@ -1,13 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import extractZip from "extract-zip";
 import type { ModComponent, ModsStatus } from "@palserver/shared";
 import type { DriverContext } from "./driver.js";
 import type { InstanceRecord } from "./store.js";
 import { serverRoot } from "./native.js";
-
-const execFileP = promisify(execFile);
 
 /**
  * Mod management for native instances (the v1 headline feature, rebuilt):
@@ -80,14 +77,15 @@ function writeMarker(root: string, component: ModComponent, version: string, fil
   fs.writeFileSync(markerFile(root), JSON.stringify(marker, null, 2));
 }
 
-/** Top-level entries (files/dirs) an archive extracts, for uninstall tracking. */
-async function archiveTopLevel(zipPath: string): Promise<string[]> {
-  const { stdout } = await execFileP("tar", ["-tf", zipPath]);
+async function extractZipTracked(zipPath: string, dir: string): Promise<string[]> {
   const top = new Set<string>();
-  for (const line of stdout.split("\n")) {
-    const seg = line.trim().replace(/^\.\//, "").split(/[\\/]/)[0];
-    if (seg) top.add(seg);
-  }
+  await extractZip(zipPath, {
+    dir,
+    onEntry: (entry) => {
+      const seg = entry.fileName.replace(/^\.\//, "").split(/[\\/]/)[0];
+      if (seg) top.add(seg);
+    },
+  });
   return [...top];
 }
 
@@ -265,9 +263,7 @@ export async function installComponent(
   fs.writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
 
   // Both zips are laid out relative to Pal/Binaries/Win64.
-  // (tar on Windows 10+/macOS is bsdtar, which extracts zip archives.)
-  const files = await archiveTopLevel(zipPath);
-  await execFileP("tar", ["-xf", zipPath, "-C", win64Dir(root)]);
+  const files = await extractZipTracked(zipPath, win64Dir(root));
   fs.rmSync(zipPath, { force: true });
   writeMarker(root, component, version, files);
   return { version };
