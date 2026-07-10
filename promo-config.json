@@ -32,7 +32,8 @@
       { "name": "Dalufish", "role": "核心開發人員", "url": "https://www.instagram.com/stories/easonlu0303/" },
       { "name": "147", "role": "核心團隊維護者", "url": "https://toc.icu" },
       { "name": "墨殘", "role": "核心團隊維護者", "url": "https://www.youtube.com/@Bad_Mo" },
-      { "name": "LilaS", "role": "核心團隊維護者・資安", "url": "https://lilas-tw.com/" }
+      { "name": "LilaS", "role": "核心團隊維護者・資安", "url": "https://lilas-tw.com/" },
+      { "name": "咖啡", "role": "核心團隊維護者", "url": "" }
     ],
     "donate": "https://buymeacoffee.com/dalufish"
   }

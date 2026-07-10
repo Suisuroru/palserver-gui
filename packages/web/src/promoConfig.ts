@@ -73,6 +73,7 @@ const DEFAULT: PromoConfig = {
       { name: "147", role: "核心團隊維護者", url: "https://toc.icu" },
       { name: "墨殘", role: "核心團隊維護者", url: "https://www.youtube.com/@Bad_Mo" },
       { name: "LilaS", role: "核心團隊維護者・資安", url: "https://lilas-tw.com/" },
+      { name: "咖啡", role: "核心團隊維護者" },
     ],
     donate: "https://buymeacoffee.com/dalufish",
   },

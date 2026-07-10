@@ -49,7 +49,7 @@ export function CreditsModal({ onClose }: { onClose: () => void }) {
         <div className="border-t border-line pt-3">
           <h3 className="mb-2 text-sm font-extrabold">捐贈名單</h3>
           <p className="mb-2 text-[13px] text-ink-muted">
-            感謝每一位支持 palserver GUI 的贊助者,完整名單與贊助方式請見:
+            感謝每一位支持 palserver GUI 的贊助者,完整名單請見:
           </p>
           <a
             className={`${btn} inline-flex items-center gap-1.5`}
