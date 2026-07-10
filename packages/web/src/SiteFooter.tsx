@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PrivacyModal } from "./PrivacyModal";
+import { usePromoConfig } from "./promoConfig";
 import { t, useI18n } from "./i18n";
 
 /**
@@ -11,6 +12,7 @@ import { t, useI18n } from "./i18n";
  */
 export function SiteFooter() {
   useI18n();
+  const { faq } = usePromoConfig();
   const [showPrivacy, setShowPrivacy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const clear = useClearOfContent(ref);
@@ -35,6 +37,14 @@ export function SiteFooter() {
         </a>
         <div className="mt-0.5 flex items-center gap-2">
           <span className="font-mono opacity-80">{__APP_VERSION__}</span>
+          <a
+            className="pointer-events-auto underline-offset-2 transition hover:text-pal hover:underline"
+            href={faq}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("常見問題")}
+          </a>
           <button
             className="pointer-events-auto underline-offset-2 transition hover:text-pal hover:underline"
             onClick={() => setShowPrivacy(true)}

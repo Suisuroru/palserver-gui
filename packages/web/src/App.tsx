@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GiSheep, GiEggClutch } from "react-icons/gi";
-import { FiDownload, FiHeart, FiPlus, FiSettings } from "react-icons/fi";
+import { FiDownload, FiHeart, FiHelpCircle, FiPlus, FiSettings } from "react-icons/fi";
 import type { InstanceSummary } from "@palserver/shared";
 import { AgentClient, loadConnection, saveConnection, type Connection } from "./api";
+import { usePromoConfig } from "./promoConfig";
 import { ConnectFlow } from "./ConnectFlow";
 import { SettingsModal } from "./SettingsModal";
 import { CreditsModal } from "./CreditsModal";
@@ -48,6 +49,7 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
   // 把 onDisconnect 當作 401 處理:token 失效(換過/重置)時自動清掉連線、退回
   // 連線畫面重新配對,而不是一直用壞掉的 token 重試。
   const { t } = useI18n();
+  const { faq } = usePromoConfig();
   const client = useRef(new AgentClient(conn, onDisconnect)).current;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -65,6 +67,14 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
           <span className="hidden text-[13px] text-ink-muted sm:inline">{conn.url}</span>
           <LangSelect />
           <ThemeToggle />
+          <a
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            href={faq}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FiHelpCircle className="size-4" /> {t("常見問題")}
+          </a>
           <button
             className={`${btnGhost} inline-flex items-center gap-1.5`}
             onClick={() => setShowCredits(true)}

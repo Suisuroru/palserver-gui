@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 export interface PromoConfig {
   company: { name: string; website: string; instagram: string; discord: string; sponsor: string };
   ipService: { name: string; website: string; discord: string };
+  /** 常見問題站,header 與頁尾都會連過去。 */
+  faq: string;
   /** 我們自己的遊戲伺服器代管維護服務(月費制),在引擎微調頁推廣。 */
   maintenanceService: { name: string; url: string; tagline: string; email: string };
   vpn: {
@@ -49,6 +51,7 @@ const DEFAULT: PromoConfig = {
     website: "https://iosoftware.ai/ip-connect-service",
     discord: "https://discord.gg/sgMMdUZd3V",
   },
+  faq: "https://faq.toc.icu/",
   maintenanceService: {
     name: "遊戲伺服器維護服務",
     url: "https://iosoftware.ai/server-maintain-service",
