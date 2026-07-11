@@ -13,6 +13,7 @@ import {
 import { SteamId } from "./SteamId";
 import { useGameData, palIconUrl, type GameData } from "./gameData";
 import { PlayerDetailModal } from "./PlayerDetailModal";
+import { PlayerActionsMenu } from "./PlayerActionsMenu";
 
 /** A stable avatar per player: hash the id to pick a Pal, so the same player
  * always shows the same face. Palworld has no player portraits, so a Pal
@@ -158,6 +159,8 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
         <KnownPlayersCard
           known={known}
           gameData={gameData}
+          client={client}
+          instanceId={instanceId}
           onOpen={(id, label) => setDetailFor({ id, label })}
         />
         <PresenceTimeline events={events} />
@@ -264,7 +267,13 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
                   </p>
                 </div>
                 <p className="hidden text-xs text-ink-muted sm:block">{p.ip}</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <PlayerActionsMenu
+                    client={client}
+                    instanceId={instanceId}
+                    userId={p.userId}
+                    displayLabel={p.name}
+                  />
                   <button
                     className={`${btnGhost} inline-flex items-center gap-1.5`}
                     onClick={() => playerAction(p, "kick")}
@@ -308,6 +317,8 @@ export function PlayersTab({ client, instanceId }: { client: AgentClient; instan
       <KnownPlayersCard
         known={known}
         gameData={gameData}
+        client={client}
+        instanceId={instanceId}
         onOpen={(id, label) => setDetailFor({ id, label })}
       />
       <ModerationCard
@@ -345,10 +356,14 @@ const fmtWhen = (iso: string) => new Date(iso).toLocaleString();
 function KnownPlayersCard({
   known,
   gameData,
+  client,
+  instanceId,
   onOpen,
 }: {
   known: KnownPlayer[];
   gameData: GameData | null;
+  client: AgentClient;
+  instanceId: string;
   onOpen: (id: string, label: string) => void;
 }) {
   const offline = known.filter((p) => !p.online);
@@ -399,6 +414,12 @@ function KnownPlayersCard({
                     <p>{t("首次出現")} {fmtWhen(p.firstSeen)}</p>
                   </div>
                 )}
+                <PlayerActionsMenu
+                  client={client}
+                  instanceId={instanceId}
+                  userId={p.userId}
+                  displayLabel={p.name || p.userId}
+                />
               </div>
             );
           })}

@@ -1,30 +1,16 @@
 import { useEffect, useState } from "react";
-import { FiX, FiChevronDown, FiCpu, FiPackage, FiTerminal, FiTrendingUp, FiZap } from "react-icons/fi";
+import { FiX, FiCpu, FiPackage, FiTrendingUp, FiZap } from "react-icons/fi";
 import { GiShield } from "react-icons/gi";
 import type { PlayerDetail } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { useGameData, displayName, palIconUrl, itemIconUrl, type GameData } from "./gameData";
 import { maskSteamId } from "./SteamId";
-import { ConsoleTab } from "./ConsoleTab";
-import { CustomPalModal } from "./CustomPalModal";
 import { t, useI18n } from "./i18n";
-import { Overlay, card, btn, btnGhost, errorCls } from "./ui";
-
-/** 「玩家操作」選單:每一項對應一條指令(預選 + 預填玩家),或自訂帕魯/帕魯蛋彈窗。
- *  cmd = ConsoleTab 要預選的指令名;customPalMode = 開 CustomPalModal(pal / egg)。 */
-const PLAYER_ACTIONS: { label: string; cmd?: string; customPalMode?: "pal" | "egg" }[] = [
-  { label: "給予道具", cmd: "give" },
-  { label: "給予帕魯", cmd: "givepal" },
-  { label: "給予帕魯蛋", cmd: "giveegg" },
-  { label: "給予自訂帕魯(贊助者)", customPalMode: "pal" },
-  { label: "給予自訂帕魯蛋(贊助者)", customPalMode: "egg" },
-  { label: "給予經驗值", cmd: "give_exp" },
-  { label: "給予科技點數", cmd: "givetechpoints" },
-  { label: "給予古代科技點數", cmd: "givebosstechpoints" },
-];
+import { Overlay, card, btnGhost, errorCls } from "./ui";
 
 /** Full detail for one player — pals and inventory — via PalDefender's REST
- * API. Shows a clear prompt when that API isn't available. */
+ * API. Shows a clear prompt when that API isn't available. Player actions live
+ * in the list rows (PlayerActionsMenu), not here. */
 export function PlayerDetailModal({
   client,
   instanceId,
@@ -42,10 +28,6 @@ export function PlayerDetailModal({
   const gameData = useGameData();
   const [detail, setDetail] = useState<PlayerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  // 跳出來的子彈窗:指令台(帶預選指令)或自訂帕魯/帕魯蛋。玩家 = identifier(這位玩家的 userId)。
-  const [actionCmd, setActionCmd] = useState<string | null>(null);
-  const [customPalMode, setCustomPalMode] = useState<"pal" | "egg" | null>(null);
 
   useEffect(() => {
     client
@@ -55,53 +37,16 @@ export function PlayerDetailModal({
   }, [client, instanceId, identifier]);
 
   return (
-    <>
-      <Overlay onClose={onClose}>
+    <Overlay onClose={onClose}>
       <div
         className={`${card} flex max-h-[85vh] w-[720px] max-w-full flex-col gap-4 overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2">
           <h2 className="truncate text-lg font-extrabold">{displayLabel}</h2>
-          <div className="flex shrink-0 items-center gap-2">
-            {/* 玩家操作:點開選單,每項跳對應的指令彈窗(預填這位玩家)。 */}
-            <div className="relative">
-              <button
-                className={`${btn} inline-flex items-center gap-1.5`}
-                onClick={() => setMenuOpen((v) => !v)}
-              >
-                <FiZap className="size-4" /> {t("玩家操作")} <FiChevronDown className="size-3.5" />
-              </button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border-2 border-line bg-card shadow-(--shadow-cute)">
-                    {PLAYER_ACTIONS.map((a) => (
-                      <button
-                        key={a.label}
-                        className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-bold transition hover:bg-card-soft"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          if (a.customPalMode) setCustomPalMode(a.customPalMode);
-                          else if (a.cmd) setActionCmd(a.cmd);
-                        }}
-                      >
-                        {a.customPalMode ? (
-                          <GiShield className="size-4 text-pal" />
-                        ) : (
-                          <FiTerminal className="size-4 text-ink-muted" />
-                        )}
-                        {t(a.label)}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <button className={btnGhost} onClick={onClose}>
-              <FiX className="inline size-4" /> {t("關閉")}
-            </button>
-          </div>
+          <button className={btnGhost} onClick={onClose}>
+            <FiX className="inline size-4" /> {t("關閉")}
+          </button>
         </div>
 
         {error && <p className={errorCls}>{error}</p>}
@@ -120,44 +65,7 @@ export function PlayerDetailModal({
 
         {detail?.available && <DetailBody detail={detail} gameData={gameData} />}
       </div>
-      </Overlay>
-
-      {/* 指令彈窗:預選指令 + 預填這位玩家的 userid,沿用指令台的表單與執行流程。 */}
-      {actionCmd && (
-        <Overlay onClose={() => setActionCmd(null)}>
-          <div
-            className={`${card} flex h-[82vh] w-240 max-w-full flex-col gap-3 overflow-hidden`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex shrink-0 items-center justify-between">
-              <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
-                <FiTerminal className="size-5 text-pal" /> {t("指令台")} · {displayLabel}
-              </h2>
-              <button className={btnGhost} onClick={() => setActionCmd(null)} aria-label={t("關閉")}>
-                <FiX className="size-4" />
-              </button>
-            </div>
-            <ConsoleTab
-              client={client}
-              instanceId={instanceId}
-              initialCommandName={actionCmd}
-              initialValues={{ userid: identifier }}
-            />
-          </div>
-        </Overlay>
-      )}
-
-      {/* 自訂帕魯 / 帕魯蛋(贊助者):CustomPalModal 自帶授權閘門,預填目標玩家。 */}
-      {customPalMode && (
-        <CustomPalModal
-          client={client}
-          instanceId={instanceId}
-          mode={customPalMode}
-          initialUserId={identifier}
-          onClose={() => setCustomPalMode(null)}
-        />
-      )}
-    </>
+    </Overlay>
   );
 }
 
