@@ -209,7 +209,7 @@ export function CustomPalModal({
                 {t("蛋 ID")}
                 {gameData ? (
                   <EntityPicker
-                    catalog={gameData.items}
+                    catalog={gameData.eggs}
                     iconUrl={itemIconUrl}
                     value={eggId}
                     onChange={setEggId}

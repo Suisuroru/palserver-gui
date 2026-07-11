@@ -31,6 +31,9 @@ export const displayName = (e: GameEntity) => {
 export interface GameData {
   pals: GameEntity[];
   items: GameEntity[];
+  /** 帕魯蛋子集(items 中 id 以 PalEgg 開頭者),給「給予帕魯蛋」選單用,
+   *  避免混入 Egg / FriedEggs 等食材。 */
+  eggs: GameEntity[];
   /** 詞條(被動技)目錄,自訂帕魯用;id 為 PalDefender 內部 id */
   passives: GameEntity[];
   /** 主動技目錄,自訂帕魯用;id 為 EPalWazaID 去掉前綴 */
@@ -54,6 +57,7 @@ function build([pals, items, passives, activeSkills]: Catalogs): GameData {
   return {
     pals,
     items,
+    eggs: items.filter((i) => i.id.startsWith("PalEgg")),
     passives,
     activeSkills,
     palById: new Map(pals.map((p) => [p.id, p])),

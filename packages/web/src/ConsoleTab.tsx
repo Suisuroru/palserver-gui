@@ -46,18 +46,20 @@ function ArgField({
   useI18n();
   const isPlayerArg = arg.name === "userid";
 
-  // Item/Pal id args get an icon search picker backed by the catalogs.
+  // Item/Egg/Pal id args get an icon search picker backed by the catalogs.
+  // eggid 只列帕魯蛋(不是全部道具),itemid 才是全物品目錄。
   if ((arg.name === "itemid" || arg.name === "eggid") && gameData) {
+    const isEgg = arg.name === "eggid";
     return (
       <label className={`${labelCls} min-w-0`}>
         {t(arg.label)}
         {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
         <EntityPicker
-          catalog={gameData.items}
+          catalog={isEgg ? gameData.eggs : gameData.items}
           iconUrl={itemIconUrl}
           value={value}
           onChange={onChange}
-          placeholder={t("搜尋道具名稱或輸入 ID…")}
+          placeholder={isEgg ? t("搜尋蛋名稱或輸入 ID…") : t("搜尋道具名稱或輸入 ID…")}
         />
       </label>
     );
