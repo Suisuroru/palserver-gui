@@ -73,6 +73,18 @@ curl -X POST https://palserver-stats.iosoftware.workers.dev/api/license/issue \
 `cancelled` / `paused` → 不再續期,當期到期後停用。webhook 會先用 `x-signature-sha256`
 (HMAC-SHA256)驗簽,沒設 `BMC_WEBHOOK_SECRET` 一律拒絕。
 
+### 管理 CLI(`manage.mjs`)
+
+BMC 後台那個「新增 webhook」要手動做(BMC 沒有建 webhook 的 API),其餘可用這支腳本:
+
+```bash
+# 環境變數放 packages/stats/.env(已被 gitignore):
+#   WORKER_URL / ADMIN_TOKEN / BMC_WEBHOOK_SECRET
+pnpm license:test  -- membership.started you@example.com   # 送簽好章的假 webhook,驗整條線
+pnpm license:issue -- "某贊助者" 2026-09-01                # 手動發一張碼(月費填到期日)
+pnpm license:reset -- PAL-XXXX-XXXX-XXXX                    # 解綁,讓贊助者換機
+```
+
 ## 之後改 schema / 重新部署
 
 ```bash
