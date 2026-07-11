@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiTerminal, FiPlay, FiSearch, FiTrash2, FiX, FiStar } from "react-icons/fi";
-import { GiShield, GiEggClutch } from "react-icons/gi";
+import { GiShield } from "react-icons/gi";
 import {
   COMMAND_CATEGORY_LABELS,
   buildCommand,
@@ -166,7 +166,7 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCustomPal, setShowCustomPal] = useState(false);
+  const [customPalMode, setCustomPalMode] = useState<null | "pal" | "egg">(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [roster, setRoster] = useState<KnownPlayer[]>([]);
@@ -286,20 +286,31 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
               placeholder={t("搜尋指令…")}
             />
           </div>
-          {/* 贊助者先行版:自訂帕魯 —— 一律顯示,點了跳彈窗;未解鎖時彈窗內表單不可用。
-              樣式與下方指令項目統一。 */}
+          {/* 贊助者先行版:自訂帕魯(帕魯 / 帕魯蛋兩條)—— 樣式與下方指令一致,藍色標示贊助。
+              一律顯示,點了跳彈窗;未解鎖時彈窗內表單不可用。 */}
           {catalog.paldefender && (
-            <button
-              type="button"
-              className="shrink-0 rounded-lg px-2 py-1.5 text-left text-[13px] transition hover:bg-card-soft"
-              onClick={() => setShowCustomPal(true)}
-            >
-              <span className="inline-flex items-center gap-1 font-extrabold text-pal">
-                {t("自訂帕魯")}
-                <FiStar className="size-3" />
-              </span>
-              <span className="block text-xs text-ink-muted">{t("詞條 / 體質 / 星星")}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg px-2 py-1.5 text-left text-[13px] transition hover:bg-card-soft"
+                onClick={() => setCustomPalMode("pal")}
+              >
+                <span className="inline-flex items-center gap-1 font-mono text-sky-500">
+                  givepal_j <FiStar className="size-3" />
+                </span>
+                <span className="block text-xs text-ink-muted">{t("自訂帕魯(詞條 / 體質 / 星星)")}</span>
+              </button>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg px-2 py-1.5 text-left text-[13px] transition hover:bg-card-soft"
+                onClick={() => setCustomPalMode("egg")}
+              >
+                <span className="inline-flex items-center gap-1 font-mono text-sky-500">
+                  giveegg_j <FiStar className="size-3" />
+                </span>
+                <span className="block text-xs text-ink-muted">{t("自訂帕魯蛋(詞條 / 體質 / 星星)")}</span>
+              </button>
+            </>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {[...grouped.entries()].map(([category, cmds]) => (
@@ -426,8 +437,13 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
         </div>
       </div>
 
-      {showCustomPal && (
-        <CustomPalModal client={client} instanceId={instanceId} onClose={() => setShowCustomPal(false)} />
+      {customPalMode && (
+        <CustomPalModal
+          client={client}
+          instanceId={instanceId}
+          mode={customPalMode}
+          onClose={() => setCustomPalMode(null)}
+        />
       )}
     </div>
   );

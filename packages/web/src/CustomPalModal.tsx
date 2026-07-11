@@ -29,10 +29,13 @@ function numOrUndef(v: string): number | undefined {
 export function CustomPalModal({
   client,
   instanceId,
+  mode,
   onClose,
 }: {
   client: AgentClient;
   instanceId: string;
+  /** pal = givepal_j(給玩家);egg = giveegg_j(給帕魯蛋)。由開啟的那條指令決定。 */
+  mode: "pal" | "egg";
   onClose: () => void;
 }) {
   useI18n();
@@ -40,7 +43,6 @@ export function CustomPalModal({
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [players, setPlayers] = useState<KnownPlayer[]>([]);
 
-  const [mode, setMode] = useState<"pal" | "egg">("pal");
   const [userId, setUserId] = useState("");
   const [eggId, setEggId] = useState("");
   const [palId, setPalId] = useState("");
@@ -135,8 +137,9 @@ export function CustomPalModal({
       >
         <div className="flex shrink-0 items-center justify-between">
           <h2 className="inline-flex items-center gap-2 text-lg font-extrabold">
-            <GiEggClutch className="size-5 text-pal" /> {t("自訂帕魯")}
-            <span className="inline-flex items-center gap-1 rounded-full bg-pal/10 px-2 py-0.5 text-xs font-bold text-pal">
+            <GiEggClutch className="size-5 text-sky-500" />{" "}
+            {mode === "egg" ? t("自訂帕魯蛋") : t("自訂帕魯")}
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-xs font-bold text-sky-500">
               <FiStar className="size-3" /> {t("贊助者")}
             </span>
           </h2>
@@ -162,23 +165,6 @@ export function CustomPalModal({
 
         {/* 表單:未解鎖時整組變灰、不可操作 */}
         <div className={locked ? "pointer-events-none flex flex-col gap-3 opacity-55" : "flex flex-col gap-3"}>
-          {/* 給予方式:直接給帕魯,或給一顆帕魯蛋 */}
-          <div className="flex items-center gap-2 text-xs font-bold text-ink-muted">
-            {t("給予方式")}
-            <div className="inline-flex overflow-hidden rounded-lg border-2 border-line">
-              {(["pal", "egg"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`px-3 py-1 transition ${mode === m ? "bg-pal/15 text-pal" : "text-ink-muted hover:text-ink"}`}
-                  onClick={() => setMode(m)}
-                >
-                  {m === "pal" ? t("帕魯") : t("帕魯蛋")}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="grid gap-2 sm:grid-cols-2">
             {mode === "egg" ? (
               <label className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">
