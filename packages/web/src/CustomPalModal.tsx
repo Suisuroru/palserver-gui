@@ -5,6 +5,7 @@ import type { CustomPalInput, KnownPlayer } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { EntityPicker } from "./EntityPicker";
 import { MultiPicker } from "./MultiPicker";
+import { PlayerPicker } from "./PlayerPicker";
 import { useGameData, palIconUrl, itemIconUrl, type GameEntity } from "./gameData";
 import { t, useI18n } from "./i18n";
 import { Overlay, btn, card, errorCls, inputCls } from "./ui";
@@ -216,23 +217,7 @@ export function CustomPalModal({
             ) : (
               <label className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">
                 {t("目標玩家")}
-                {players.length > 0 ? (
-                  <select className={inputCls} value={userId} onChange={(e) => setUserId(e.target.value)}>
-                    <option value="">{t("選擇玩家…")}</option>
-                    {players.map((p) => (
-                      <option key={p.userId} value={p.userId}>
-                        {(p.name || p.accountName || p.userId) + (p.online ? " ●" : "")}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    className={inputCls}
-                    value={userId}
-                    placeholder="steam_7650..."
-                    onChange={(e) => setUserId(e.target.value)}
-                  />
-                )}
+                <PlayerPicker roster={players} value={userId} onChange={setUserId} />
               </label>
             )}
             <label className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">

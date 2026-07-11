@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiTerminal, FiPlay, FiSearch, FiTrash2, FiX, FiStar } from "react-icons/fi";
+import { FiTerminal, FiPlay, FiSearch, FiTrash2, FiStar } from "react-icons/fi";
 import { GiShield } from "react-icons/gi";
 import {
   COMMAND_CATEGORY_LABELS,
@@ -10,8 +10,9 @@ import {
   type RconCommandsResponse,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
-import { maskSteamIdsInText, SteamId } from "./SteamId";
+import { maskSteamIdsInText } from "./SteamId";
 import { EntityPicker } from "./EntityPicker";
+import { PlayerPicker } from "./PlayerPicker";
 import { CustomPalModal } from "./CustomPalModal";
 import { useGameData, itemIconUrl, palIconUrl, type GameData } from "./gameData";
 import { t, useI18n } from "./i18n";
@@ -43,9 +44,6 @@ function ArgField({
 }) {
   useI18n();
   const isPlayerArg = arg.name === "userid";
-  const online = roster.filter((p) => p.online);
-  const offline = roster.filter((p) => !p.online);
-  const inRoster = roster.some((p) => p.userId === value);
 
   // Item/Pal id args get an icon search picker backed by the catalogs.
   if ((arg.name === "itemid" || arg.name === "eggid") && gameData) {
@@ -79,65 +77,13 @@ function ArgField({
     );
   }
 
-  // Player args: once chosen, show a masked chip (name if known) instead of a
-  // raw text field, so the full UserId never sits on screen.
+  // Player args use the shared picker (name-only; never shows the SteamId).
   if (isPlayerArg) {
-    const known = roster.find((p) => p.userId === value);
-    if (value) {
-      return (
-        <label className={`${labelCls} min-w-0`}>
-          {t(arg.label)}
-          {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
-          <div className={`${inputCls} flex min-w-0 items-center gap-2`}>
-            {known && <span className="truncate font-bold text-ink">{known.name}</span>}
-            <span className="min-w-0 flex-1 truncate">
-              <SteamId userId={value} />
-            </span>
-            <button
-              type="button"
-              className="shrink-0 text-ink-muted transition hover:text-berry"
-              onClick={() => onChange("")}
-              aria-label={t("清除")}
-            >
-              <FiX className="size-4" />
-            </button>
-          </div>
-        </label>
-      );
-    }
     return (
       <label className={`${labelCls} min-w-0`}>
         {t(arg.label)}
         {!arg.required && <span className="font-normal">{t("(選填)")}</span>}
-        {roster.length > 0 && (
-          <select className={inputCls} value="" onChange={(e) => onChange(e.target.value)}>
-            <option value="">{t("— 選擇玩家 —")}</option>
-            {online.length > 0 && (
-              <optgroup label={t("在線")}>
-                {online.map((p) => (
-                  <option key={p.userId} value={p.userId}>
-                    {p.name}(Lv.{p.lastLevel})
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {offline.length > 0 && (
-              <optgroup label={t("離線(歷史玩家)")}>
-                {offline.map((p) => (
-                  <option key={p.userId} value={p.userId}>
-                    {p.name} — {t("最後上線")} {new Date(p.lastSeen).toLocaleDateString()}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        )}
-        <input
-          className={inputCls}
-          value=""
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={roster.length > 0 ? t("或直接輸入 UserId") : arg.placeholder}
-        />
+        <PlayerPicker roster={roster} value={value} onChange={onChange} placeholder={arg.placeholder} />
       </label>
     );
   }
