@@ -858,5 +858,12 @@
  "公會據點": "Guild base",
  "{n} 名成員": "{n} members",
  "開啟地圖": "Open map",
- "伺服器未在運作,地圖無法顯示玩家。": "Server isn't running — the map can't show players."
+ "伺服器未在運作,地圖無法顯示玩家。": "Server isn't running — the map can't show players.",
+ "公會據點(贊助者可看詳情)": "Guild base (details for sponsors)",
+ "公會詳情": "Guild detail",
+ "會長": "Leader",
+ "成員數": "Members",
+ "成員": "Members",
+ "據點": "Bases",
+ "讀取失敗": "Failed to load"
 }

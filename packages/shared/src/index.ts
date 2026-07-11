@@ -284,11 +284,42 @@ export interface PdGuild {
   bases: PdGuildBase[];
 }
 
-/** PalDefender /guilds 回傳。 */
+/** PalDefender /guilds 回傳。`detailed` = 有贊助者授權、可看名稱/成員等細節;
+ * 沒授權時仍給據點位置(bases),但 name/level/members 會被清空。 */
 export interface PdGuildList {
   available: boolean;
+  detailed: boolean;
   reason?: string;
   guilds: PdGuild[];
+}
+
+/** GET /guild/{id} 的一名成員。 */
+export interface PdGuildMember {
+  playerUid: string;
+  name: string;
+  status: string;
+}
+
+/** GET /guild/{id} 的一個據點(比 /guilds 多了等級與狀態)。 */
+export interface PdGuildCamp {
+  id: string;
+  level: number;
+  worldX: number;
+  worldY: number;
+  state: string;
+}
+
+/** GET /guild/{id} 的公會詳情(贊助者功能)。 */
+export interface PdGuildDetail {
+  available: boolean;
+  reason?: string;
+  id: string;
+  name: string;
+  level: number;
+  adminName: string;
+  memberCount: number;
+  members: PdGuildMember[];
+  camps: PdGuildCamp[];
 }
 
 /** Whether the agent can reach PalDefender's REST API for this instance. */

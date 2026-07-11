@@ -45,7 +45,7 @@ import * as saves from "./saves.js";
 import { getEngineSettings, writeEngineSettings } from "./engine-ini.js";
 import { getConfigHealth, regenerateConfig } from "./config-health.js";
 import { getPalDefenderConfig, writePalDefenderConfig } from "./paldefender-config.js";
-import { getPlayerDetail, getPdPlayers, getPdGuilds, getPdRestStatus, setPdRestEnabled, provisionPdToken } from "./paldefender-rest.js";
+import { getPlayerDetail, getPdPlayers, getPdGuilds, getPdGuild, getPdRestStatus, setPdRestEnabled, provisionPdToken } from "./paldefender-rest.js";
 import { setTelemetryEnabled, telemetryStatus, track } from "./telemetry.js";
 import { licenseStatus, setLicenseKey, clearLicenseKey, featureEnabled } from "./license.js";
 import { giveCustomPal } from "./pals.js";
@@ -593,7 +593,17 @@ export function registerRoutes(
 
   app.get("/api/instances/:id/guilds", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
-    return getPdGuilds(rec, ctxOf(rec));
+    // 據點位置人人可見;名稱/成員等細節是贊助者先行版功能(guild-map)。
+    return getPdGuilds(rec, ctxOf(rec), featureEnabled("guild-map"));
+  });
+
+  app.get("/api/instances/:id/guilds/:guildId", async (req, reply) => {
+    if (!featureEnabled("guild-map")) {
+      return reply.code(403).send({ error: "公會詳情為贊助者先行版功能,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const { id, guildId } = req.params as { id: string; guildId: string };
+    const rec = getOr404(id);
+    return getPdGuild(rec, ctxOf(rec), guildId);
   });
 
   app.put("/api/instances/:id/paldefender-rest/enabled", async (req) => {

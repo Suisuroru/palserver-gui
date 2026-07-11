@@ -15,6 +15,7 @@ export interface EarlyAccessFeature {
 
 export const EARLY_ACCESS_FEATURES: EarlyAccessFeature[] = [
   { id: "custom-pal", label: "自訂帕魯(詞條 / 體質 / 星星)", until: "2026-12-31" },
+  { id: "guild-map", label: "地圖公會詳情(名稱 / 成員 / 據點)", until: "2027-12-31" },
 ];
 
 /** 這個功能現在是否已對所有人免費(不在目錄裡的一律視為免費)。 */

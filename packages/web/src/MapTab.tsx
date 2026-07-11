@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiRefreshCw, FiMap, FiX } from "react-icons/fi";
+import { FiRefreshCw, FiMap, FiX, FiHome } from "react-icons/fi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { savToMap, type LiveStatus, type RestPlayer, type PdGuild } from "@palserver/shared";
+import {
+  savToMap,
+  type LiveStatus,
+  type RestPlayer,
+  type PdGuild,
+  type PdGuildDetail,
+} from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { useGameData, palIconUrl, type GameData } from "./gameData";
 import { t, useI18n } from "./i18n";
@@ -55,6 +61,8 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   const gameData = useGameData();
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [guilds, setGuilds] = useState<PdGuild[]>([]);
+  const [guildsDetailed, setGuildsDetailed] = useState(false);
+  const [guildDetailId, setGuildDetailId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -66,9 +74,13 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
       setError(err instanceof Error ? err.message : String(err));
     }
     // 公會據點來自 PalDefender REST(沒開就沒有,靜默略過,不擋地圖)。
+    // detailed = 有贊助者授權,可看名稱/成員;沒授權只拿得到據點位置。
     client
       .guilds(instanceId)
-      .then((g) => setGuilds(g.available ? g.guilds : []))
+      .then((g) => {
+        setGuilds(g.available ? g.guilds : []);
+        setGuildsDetailed(g.detailed);
+      })
       .catch(() => setGuilds([]));
   }, [client, instanceId]);
 
@@ -122,11 +134,133 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden rounded-xl">
-              <PlayerMap players={live.players} guilds={guilds} gameData={gameData} />
+              <PlayerMap
+                players={live.players}
+                guilds={guilds}
+                detailed={guildsDetailed}
+                gameData={gameData}
+                onGuildClick={guildsDetailed ? setGuildDetailId : undefined}
+              />
             </div>
           </div>
         </Overlay>
       )}
+
+      {guildDetailId && (
+        <GuildDetailModal
+          client={client}
+          instanceId={instanceId}
+          guildId={guildDetailId}
+          onClose={() => setGuildDetailId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 公會詳情彈窗(贊助者):成員名單 + 據點,取自 PalDefender /guild/{id}。 */
+function GuildDetailModal({
+  client,
+  instanceId,
+  guildId,
+  onClose,
+}: {
+  client: AgentClient;
+  instanceId: string;
+  guildId: string;
+  onClose: () => void;
+}) {
+  useI18n();
+  const [detail, setDetail] = useState<PdGuildDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    client
+      .guild(instanceId, guildId)
+      .then(setDetail)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, [client, instanceId, guildId]);
+
+  return (
+    <Overlay onClose={onClose}>
+      <div
+        className={`${card} flex max-h-[85vh] w-[560px] max-w-full flex-col gap-4 overflow-y-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="inline-flex items-center gap-2 truncate text-lg font-extrabold">
+            <FiHome className="size-5 text-pal" /> {detail?.name || t("公會詳情")}
+          </h2>
+          <button className={btnGhost} onClick={onClose}>
+            <FiX className="inline size-4" /> {t("關閉")}
+          </button>
+        </div>
+
+        {error && <p className={errorCls}>{error}</p>}
+        {!detail && !error && <p className="text-ink-muted">{t("載入中…")}</p>}
+        {detail && !detail.available && <p className={errorCls}>{detail.reason ?? t("讀取失敗")}</p>}
+
+        {detail?.available && (
+          <>
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              <Info label={t("等級")} value={`Lv.${detail.level}`} />
+              <Info label={t("會長")} value={detail.adminName || "—"} />
+              <Info label={t("成員數")} value={String(detail.memberCount)} />
+            </div>
+
+            <div>
+              <h3 className="mb-1 text-sm font-extrabold text-ink-muted">
+                {t("成員")}({detail.members.length})
+              </h3>
+              <div className="flex flex-col divide-y divide-line">
+                {detail.members.map((m) => (
+                  <div key={m.playerUid} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                    <span className="truncate font-bold">{m.name || "—"}</span>
+                    <span
+                      className={`shrink-0 text-xs font-bold ${
+                        m.status.toLowerCase() === "online" ? "text-grass" : "text-ink-muted"
+                      }`}
+                    >
+                      {m.status.toLowerCase() === "online" ? t("在線") : t("離線")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-1 text-sm font-extrabold text-ink-muted">
+                {t("據點")}({detail.camps.length})
+              </h3>
+              <div className="flex flex-col divide-y divide-line">
+                {detail.camps.map((c) => {
+                  const m = savToMap(c.worldX, c.worldY);
+                  return (
+                    <div key={c.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                      <span className="font-bold">
+                        Lv.{c.level}
+                        {c.state ? <span className="ml-2 text-xs font-normal text-ink-muted">{c.state}</span> : null}
+                      </span>
+                      <span className="shrink-0 text-xs text-ink-muted">
+                        {Math.round(m.x)}, {Math.round(m.y)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Overlay>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-ink-muted">{label}</p>
+      <p className="font-bold break-all">{value}</p>
     </div>
   );
 }
@@ -136,15 +270,23 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
 function PlayerMap({
   players,
   guilds,
+  detailed,
   gameData,
+  onGuildClick,
 }: {
   players: RestPlayer[];
   guilds: PdGuild[];
+  /** Whether guild details are unlocked (sponsor). If false, bases are shown as
+   * plain grey markers with no name/details and no click-through. */
+  detailed: boolean;
   gameData: GameData | null;
+  onGuildClick?: (guildId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const onGuildClickRef = useRef(onGuildClick);
+  onGuildClickRef.current = onGuildClick;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -201,8 +343,10 @@ function PlayerMap({
     const guildOf = (p: RestPlayer) => guildByMember.get(p.playerId) ?? guildByMember.get(p.userId);
 
     // Guild bases first (under players). world_pos → savToMap, same frame.
+    // Sponsors get a coloured, named, clickable base; others see only a grey
+    // position marker (a base is here, but not whose or its details).
     for (const g of guilds) {
-      const color = guildColor(g.id);
+      const color = detailed ? guildColor(g.id) : "#8a94a3";
       for (const b of g.bases) {
         const { x, y } = savToMap(b.worldX, b.worldY);
         const icon = L.divIcon({
@@ -215,13 +359,18 @@ function PlayerMap({
             `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>` +
             `</span>`,
         });
-        L.marker([y, x], { icon })
-          .bindTooltip(
-            `<div style="font-weight:800">${escapeHtml(g.name || "—")}</div>` +
-              `<div>${t("公會據點")} · Lv.${g.level} · ${t("{n} 名成員", { n: g.memberCount })}</div>`,
-            { direction: "top", className: "pmap-detail" },
-          )
-          .addTo(group);
+        const marker = L.marker([y, x], { icon });
+        marker.bindTooltip(
+          detailed
+            ? `<div style="font-weight:800">${escapeHtml(g.name || "—")}</div>` +
+                `<div>${t("公會據點")} · Lv.${g.level} · ${t("{n} 名成員", { n: g.memberCount })}</div>`
+            : `<div>${t("公會據點(贊助者可看詳情)")}</div>`,
+          { direction: "top", className: "pmap-detail" },
+        );
+        if (detailed && onGuildClickRef.current) {
+          marker.on("click", () => onGuildClickRef.current?.(g.id));
+        }
+        marker.addTo(group);
       }
     }
 
@@ -251,7 +400,7 @@ function PlayerMap({
       );
       group.addLayer(marker);
     }
-  }, [players, guilds, gameData]);
+  }, [players, guilds, detailed, gameData]);
 
   return <div ref={containerRef} className="h-full w-full rounded-xl bg-card-soft" />;
 }

@@ -26,6 +26,7 @@ import type {
   PalDefenderConfig,
   PalDefenderConfigStatus,
   PdGuildList,
+  PdGuildDetail,
   PdPlayerList,
   PdRestStatus,
   PlayerDetail,
@@ -350,6 +351,10 @@ export class AgentClient {
 
   guilds(id: string): Promise<PdGuildList> {
     return this.request(`/api/instances/${id}/guilds`);
+  }
+
+  guild(id: string, guildId: string): Promise<PdGuildDetail> {
+    return this.request(`/api/instances/${id}/guilds/${encodeURIComponent(guildId)}`);
   }
 
   palDefenderRest(id: string): Promise<PdRestStatus> {

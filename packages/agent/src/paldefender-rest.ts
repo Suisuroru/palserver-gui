@@ -6,6 +6,7 @@ import type {
   PdItemSlot,
   PdGuild,
   PdGuildList,
+  PdGuildDetail,
   PdPlayerList,
   PdPlayerSummary,
   PdRestStatus,
@@ -255,11 +256,16 @@ export async function getPdPlayers(rec: InstanceRecord, ctx: DriverContext): Pro
   }
 }
 
-/** 公會 + 據點(PalDefender /guilds)。前端拿據點的 world_pos 走 savToMap 畫到地圖。 */
-export async function getPdGuilds(rec: InstanceRecord, ctx: DriverContext): Promise<PdGuildList> {
+/** 公會 + 據點(PalDefender /guilds)。前端拿據點的 world_pos 走 savToMap 畫到地圖。
+ * detailed=false(非贊助者)時只回據點位置,清掉名稱/等級/成員等細節。 */
+export async function getPdGuilds(
+  rec: InstanceRecord,
+  ctx: DriverContext,
+  detailed: boolean,
+): Promise<PdGuildList> {
   const status = getPdRestStatus(rec, ctx);
   if (!status.enabled) {
-    return { available: false, reason: status.reason, guilds: [] };
+    return { available: false, detailed, reason: status.reason, guilds: [] };
   }
   const dir = pdDir(rec, ctx)!;
   try {
@@ -268,6 +274,16 @@ export async function getPdGuilds(rec: InstanceRecord, ctx: DriverContext): Prom
       const g = (raw ?? {}) as Record<string, unknown>;
       const admin = (g.admin ?? {}) as Record<string, unknown>;
       const camps = Array.isArray(g.camps) ? (g.camps as Record<string, unknown>[]) : [];
+      const bases = camps
+        .map((c) => {
+          const world = ((c ?? {}).world_pos ?? {}) as Record<string, unknown>;
+          return { id: String((c ?? {}).id ?? ""), worldX: Number(world.x), worldY: Number(world.y) };
+        })
+        .filter((b) => Number.isFinite(b.worldX) && Number.isFinite(b.worldY));
+      // 非贊助者:只保留 id 與據點位置,細節一律清空。
+      if (!detailed) {
+        return { id, name: "", level: 0, adminName: "", memberCount: 0, members: [], bases };
+      }
       return {
         id,
         name: String(g.name ?? ""),
@@ -275,17 +291,70 @@ export async function getPdGuilds(rec: InstanceRecord, ctx: DriverContext): Prom
         adminName: String(admin.name ?? ""),
         memberCount: Number(g.member_count ?? (Array.isArray(g.members) ? g.members.length : 0)),
         members: Array.isArray(g.members) ? g.members.map(String) : [],
-        bases: camps
-          .map((c) => {
-            const world = ((c ?? {}).world_pos ?? {}) as Record<string, unknown>;
-            return { id: String((c ?? {}).id ?? ""), worldX: Number(world.x), worldY: Number(world.y) };
-          })
-          .filter((b) => Number.isFinite(b.worldX) && Number.isFinite(b.worldY)),
+        bases,
       };
     });
-    return { available: true, guilds };
+    return { available: true, detailed, guilds };
   } catch (err) {
-    return { available: false, reason: err instanceof Error ? err.message : String(err), guilds: [] };
+    return { available: false, detailed, reason: err instanceof Error ? err.message : String(err), guilds: [] };
+  }
+}
+
+/** 單一公會詳情(PalDefender /guild/{id}):成員名單 + 據點(含等級/狀態)。贊助者功能。 */
+export async function getPdGuild(
+  rec: InstanceRecord,
+  ctx: DriverContext,
+  guildId: string,
+): Promise<PdGuildDetail> {
+  const empty = (reason?: string): PdGuildDetail => ({
+    available: false,
+    reason,
+    id: guildId,
+    name: "",
+    level: 0,
+    adminName: "",
+    memberCount: 0,
+    members: [],
+    camps: [],
+  });
+  const status = getPdRestStatus(rec, ctx);
+  if (!status.enabled) return empty(status.reason);
+  const dir = pdDir(rec, ctx)!;
+  try {
+    const res = await pdFetch<{ Guild?: Record<string, unknown> }>(
+      rec,
+      dir,
+      `/guild/${encodeURIComponent(guildId)}`,
+    );
+    const g = (res.Guild ?? {}) as Record<string, unknown>;
+    const admin = (g.admin ?? {}) as Record<string, unknown>;
+    const rawMembers = Array.isArray(g.members) ? (g.members as Record<string, unknown>[]) : [];
+    const rawCamps = Array.isArray(g.camps) ? (g.camps as Record<string, unknown>[]) : [];
+    return {
+      available: true,
+      id: guildId,
+      name: String(g.name ?? ""),
+      level: Number(g.Level ?? 0),
+      adminName: String(admin.name ?? ""),
+      memberCount: Number(g.member_count ?? rawMembers.length),
+      members: rawMembers.map((m) => ({
+        playerUid: String((m ?? {}).player_uid ?? ""),
+        name: String((m ?? {}).player_name ?? ""),
+        status: String((m ?? {}).status ?? ""),
+      })),
+      camps: rawCamps.map((c) => {
+        const world = ((c ?? {}).world_pos ?? {}) as Record<string, unknown>;
+        return {
+          id: String((c ?? {}).id ?? ""),
+          level: Number((c ?? {}).level ?? 0),
+          worldX: Number(world.x),
+          worldY: Number(world.y),
+          state: String((c ?? {}).state ?? ""),
+        };
+      }),
+    };
+  } catch (err) {
+    return empty(err instanceof Error ? err.message : String(err));
   }
 }
 
