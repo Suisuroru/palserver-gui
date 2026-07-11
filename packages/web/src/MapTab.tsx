@@ -4,6 +4,7 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { savToMap, type LiveStatus, type RestPlayer } from "@palserver/shared";
 import type { AgentClient } from "./api";
+import { useGameData, palIconUrl, type GameData } from "./gameData";
 import { t, useI18n } from "./i18n";
 import { btnGhost, card, errorCls } from "./ui";
 
@@ -31,8 +32,20 @@ const IMAGE_BOUNDS = L.latLngBounds([-1000, -1000], [1000, 1000]);
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
+/** Same deterministic "random Pal" avatar as the player list (PlayerAvatar):
+ * hash the userId and pick a Pal that has artwork. Returns its icon URL. */
+function avatarIconUrl(seed: string, gameData: GameData | null): string | null {
+  const withIcons = gameData?.pals.filter((p) => p.icon) ?? [];
+  if (!withIcons.length) return null;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  const pal = withIcons[hash % withIcons.length];
+  return pal.icon ? palIconUrl(pal.icon) : null;
+}
+
 export function MapTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   useI18n();
+  const gameData = useGameData();
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +86,7 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
       </div>
 
       <div className={`${card} overflow-hidden p-2`}>
-        <PlayerMap players={live.players} />
+        <PlayerMap players={live.players} gameData={gameData} />
       </div>
 
       <p className="text-[13px] text-ink-muted">
@@ -83,8 +96,8 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   );
 }
 
-/** Leaflet CRS.Simple map + one circle marker per online player. */
-function PlayerMap({ players }: { players: RestPlayer[] }) {
+/** Leaflet CRS.Simple map + one avatar marker per online player. */
+function PlayerMap({ players, gameData }: { players: RestPlayer[]; gameData: GameData | null }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
@@ -135,30 +148,30 @@ function PlayerMap({ players }: { players: RestPlayer[] }) {
     const group = markersRef.current;
     if (!group) return;
     group.clearLayers();
-    const pal =
-      getComputedStyle(document.documentElement).getPropertyValue("--color-pal").trim() || "#7c5cff";
+    const SIZE = 40;
     for (const p of players) {
       const { x, y } = savToMap(p.location_x, p.location_y);
-      const marker = L.circleMarker([y, x], {
-        radius: 7,
-        weight: 3,
-        color: "#ffffff",
-        fillColor: pal,
-        fillOpacity: 1,
+      const iconUrl = avatarIconUrl(p.userId, gameData);
+      // A round Pal-avatar pin (same random Pal as the player list), built as a
+      // div-icon so it can hold an <img>. Details show on hover, not always.
+      const icon = L.divIcon({
+        className: "pmap-avatar-wrap",
+        iconSize: [SIZE, SIZE],
+        iconAnchor: [SIZE / 2, SIZE / 2],
+        tooltipAnchor: [0, -SIZE / 2],
+        html: `<span class="pmap-avatar" style="width:${SIZE}px;height:${SIZE}px">${
+          iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="" />` : ""
+        }</span>`,
       });
-      marker.bindTooltip(escapeHtml(p.name || "—"), {
-        permanent: true,
-        direction: "top",
-        offset: L.point(0, -6),
-        className: "pmap-label",
-      });
-      marker.bindPopup(
+      const marker = L.marker([y, x], { icon, riseOnHover: true });
+      marker.bindTooltip(
         `<div style="font-weight:800">${escapeHtml(p.name || "—")}</div>` +
           `<div>${t("座標")} ${Math.round(x)}, ${Math.round(y)} · Lv.${p.level}</div>`,
+        { direction: "top", className: "pmap-detail" },
       );
       group.addLayer(marker);
     }
-  }, [players]);
+  }, [players, gameData]);
 
   return <div ref={containerRef} className="aspect-square w-full rounded-xl bg-card-soft" />;
 }
