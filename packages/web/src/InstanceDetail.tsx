@@ -55,12 +55,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "logs", label: "日誌" },
 ];
 
-/** 手動停止/重啟時,先在遊戲聊天室倒數幾秒再執行。倒數期間每秒更新 UI,並在這些
- * 剩餘秒數時發一則廣播(頭尾密一點,中段疏一點)。 */
-const COUNTDOWN_SECONDS = 15;
-const ANNOUNCE_AT = new Set([10, 5, 3, 2, 1]); // 起始秒數會先發一則以偵測 REST 是否可用
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export function InstanceDetailPage({
   client,
   instanceId,
@@ -106,37 +100,37 @@ export function InstanceDetailPage({
   }, [refresh]);
 
   const act = async (action: "start" | "stop" | "restart") => {
+    // 手動停止/重啟時,agent 端會依「自動重啟設定」裡的倒數秒數,在遊戲聊天室倒數公告
+    // 再執行;公告訊息用 GUI 介面語言的模板({n} 由 agent 代入剩餘秒數)。前端只負責把
+    // 模板傳過去,並用讀到的秒數跑一個純顯示用的本地倒數。
+    const isDowntime = (action === "stop" || action === "restart") && detail?.status === "running";
+    let timer: ReturnType<typeof setInterval> | undefined;
     try {
-      // 手動停止/重啟且伺服器在跑時,先在遊戲聊天室倒數 15 秒公告(用 GUI 介面語言),
-      // 給玩家反應時間,再真的執行。廣播走伺服器 REST;REST 沒開就跳過倒數直接執行。
-      if ((action === "stop" || action === "restart") && detail?.status === "running") {
-        const announce = (n: number) =>
-          client.announce(
-            instanceId,
-            action === "stop"
-              ? t("伺服器將在 {n} 秒後停止", { n })
-              : t("伺服器將在 {n} 秒後重新啟動", { n }),
-          );
-        let announced = false;
-        try {
-          await announce(COUNTDOWN_SECONDS); // 先發第一則,順便確認 REST 可用
-          announced = true;
-        } catch {
-          /* REST 未啟用 — 無法公告,直接執行 */
-        }
-        if (announced) {
-          for (let n = COUNTDOWN_SECONDS; n >= 1; n--) {
-            setCountdown(n);
-            if (ANNOUNCE_AT.has(n)) await announce(n).catch(() => {});
-            await sleep(1000);
-          }
+      const template = !isDowntime
+        ? undefined
+        : action === "stop"
+          ? t("伺服器將在 {n} 秒後停止")
+          : t("伺服器將在 {n} 秒後重新啟動");
+      if (isDowntime) {
+        const seconds = await client
+          .restartPolicy(instanceId)
+          .then((p) => p.policy.announceSeconds)
+          .catch(() => 0);
+        if (seconds > 0) {
+          const startedAt = Date.now();
+          setCountdown(seconds);
+          timer = setInterval(() => {
+            const left = seconds - Math.floor((Date.now() - startedAt) / 1000);
+            setCountdown(left > 0 ? left : 0);
+          }, 500);
         }
       }
-      await client.action(instanceId, action);
+      await client.action(instanceId, action, template);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      if (timer) clearInterval(timer);
       setCountdown(null);
     }
   };

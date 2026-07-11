@@ -62,6 +62,32 @@ const drivers: Record<InstanceRecord["backend"], ServerDriver> = {
   k8s: k8sDriver,
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** 剩餘幾秒時各發一則倒數公告(頭尾密、中段疏);總秒數本身一定會發第一則。 */
+const COUNTDOWN_MARKS = [60, 30, 20, 10, 5, 3, 2, 1];
+
+/**
+ * 手動停止/重啟前,在遊戲聊天室倒數公告再執行。訊息用呼叫端(GUI)傳來的在地化模板,
+ * `{n}` 由這裡代入剩餘秒數;公告走伺服器 REST,REST 沒開就直接跳過(不空等)。
+ */
+async function announceCountdown(rec: InstanceRecord, seconds: number, template: string): Promise<void> {
+  const say = (n: number) => rest.announce(rec, template.split("{n}").join(String(n)));
+  const marks = [seconds, ...COUNTDOWN_MARKS.filter((m) => m < seconds)];
+  try {
+    await say(marks[0]); // 先發第一則,順便確認 REST 可用
+  } catch {
+    return; // REST 未啟用 — 無法公告,直接執行,不空等
+  }
+  for (let i = 0; i < marks.length; i++) {
+    if (i > 0) await say(marks[i]).catch(() => {});
+    const next = marks[i + 1] ?? 0;
+    await sleep((marks[i] - next) * 1000);
+  }
+}
+
+const AnnounceBody = z.object({ announceTemplate: z.string().max(500).optional() });
+
 export function registerRoutes(
   app: FastifyInstance,
   store: InstanceStore,
@@ -396,8 +422,20 @@ export function registerRoutes(
     return toSummary(rec);
   });
 
+  /** 停止/重啟前若帶了 announceTemplate 且伺服器在跑,依該實例的 announceSeconds 設定
+   * 先在遊戲聊天室倒數公告(0 秒 = 不公告)。announceSeconds 與自動重啟共用同一個設定。 */
+  const announceBeforeDowntime = async (rec: InstanceRecord, body: unknown): Promise<void> => {
+    const template = AnnounceBody.safeParse(body ?? {}).data?.announceTemplate;
+    if (!template) return;
+    const seconds = Math.min(Math.max(supervisor.readPolicy(rec.id).announceSeconds, 0), 300);
+    if (seconds <= 0) return;
+    if ((await driverOf(rec).status(rec, ctxOf(rec))).status !== "running") return;
+    await announceCountdown(rec, seconds, template);
+  };
+
   app.post("/api/instances/:id/stop", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
+    await announceBeforeDowntime(rec, req.body);
     await driverOf(rec).stop(rec, ctxOf(rec));
     presence.markAllOffline(rec.id);
     // A deliberate stop must not look like a crash to the supervisor.
@@ -407,6 +445,7 @@ export function registerRoutes(
 
   app.post("/api/instances/:id/restart", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
+    await announceBeforeDowntime(rec, req.body);
     await driverOf(rec).stop(rec, ctxOf(rec));
     presence.markAllOffline(rec.id);
     await driverOf(rec).start(rec, ctxOf(rec));

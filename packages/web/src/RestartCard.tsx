@@ -203,7 +203,7 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
         </p>
       </Section>
 
-      <Field label={t("計畫性重啟前的預告秒數(0 = 不預告)")}>
+      <Field label={t("停止 / 重啟前的預告秒數(0 = 不預告)")}>
         <input
           className={`${inputCls} max-w-40`}
           type="number"
@@ -214,7 +214,7 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
         />
       </Field>
       <p className="-mt-2 text-xs text-ink-muted">
-        {t("會透過 REST API 廣播給線上玩家,並在重啟前先存檔。崩潰重啟不預告(伺服器已經不在了)。")}
+        {t("計畫性重啟以及你手動按停止 / 重啟時,都會先在遊戲聊天室倒數公告這麼多秒(手動用介面語言),並在重啟前先存檔。崩潰重啟不預告(伺服器已經不在了)。")}
       </p>
 
       <div className="flex gap-2">

@@ -187,8 +187,17 @@ export class AgentClient {
     return this.request("/api/instances", { method: "POST", body: JSON.stringify(input) });
   }
 
-  action(id: string, action: "start" | "stop" | "restart"): Promise<InstanceSummary> {
-    return this.request(`/api/instances/${id}/${action}`, { method: "POST" });
+  /** announceTemplate(含 {n} 佔位)只用於 stop/restart:agent 會用它在遊戲聊天室
+   * 倒數公告(語言由呼叫端決定),秒數取自該實例自動重啟設定的 announceSeconds。 */
+  action(
+    id: string,
+    action: "start" | "stop" | "restart",
+    announceTemplate?: string,
+  ): Promise<InstanceSummary> {
+    return this.request(`/api/instances/${id}/${action}`, {
+      method: "POST",
+      body: announceTemplate ? JSON.stringify({ announceTemplate }) : undefined,
+    });
   }
 
   deleteInstance(id: string): Promise<void> {
