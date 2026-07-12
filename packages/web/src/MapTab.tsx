@@ -70,10 +70,10 @@ interface Landmark {
   y: number;
   lv?: number;
 }
-const LANDMARK_STYLE: Record<string, { color: string; label: string }> = {
-  "Fast Travel": { color: "#33bccb", label: "快速旅行" },
-  Tower: { color: "#b07ce8", label: "頭目塔" },
-  Dungeon: { color: "#e0913f", label: "地牢" },
+const LANDMARK_STYLE: Record<string, { icon: string; size: number; label: string }> = {
+  "Fast Travel": { icon: "/game-data/landmark-icons/fasttravel.png", size: 26, label: "快速旅行" },
+  Tower: { icon: "/game-data/landmark-icons/tower.png", size: 30, label: "頭目塔" },
+  Dungeon: { icon: "/game-data/landmark-icons/dungeon.png", size: 22, label: "地牢" },
 };
 
 /** Same deterministic "random Pal" avatar as the player list (PlayerAvatar):
@@ -193,14 +193,25 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
                     <FiMoon className="size-4" /> {t("離線玩家")}
                   </button>
                 )}
-                {landmarks.length > 0 && (
-                  <button
-                    className={`${btnGhost} inline-flex items-center gap-1.5 ${showLandmarks ? "border-pal text-pal" : "opacity-60"}`}
-                    onClick={() => setShowLandmarks((v) => !v)}
-                  >
-                    <FiMapPin className="size-4" /> {t("地標")}
-                  </button>
-                )}
+                {landmarks.length > 0 &&
+                  (guildsUnlocked ? (
+                    <button
+                      className={`${btnGhost} inline-flex items-center gap-1.5 ${showLandmarks ? "border-pal text-pal" : "opacity-60"}`}
+                      onClick={() => setShowLandmarks((v) => !v)}
+                    >
+                      <FiMapPin className="size-4" /> {t("地標")}
+                      <FiStar className="size-3.5 text-pal" />
+                    </button>
+                  ) : (
+                    <button
+                      className={`${btnGhost} inline-flex items-center gap-1.5 opacity-70`}
+                      title={t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+                      onClick={() => setGuildHint((v) => !v)}
+                    >
+                      <FiMapPin className="size-4" /> {t("地標")}
+                      <FiStar className="size-3.5 text-pal" />
+                    </button>
+                  ))}
                 {guildsUnlocked ? (
                   <button
                     className={`${btnGhost} inline-flex items-center gap-1.5 ${showBases ? "border-pal text-pal" : "opacity-60"}`}
@@ -231,7 +242,7 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
             </div>
             {guildHint && !guildsUnlocked && (
               <p className="rounded-xl bg-sun/15 px-3 py-2 text-[13px] font-bold text-sun">
-                {t("公會據點是贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+                {t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
               </p>
             )}
             <div className="min-h-0 flex-1 overflow-hidden rounded-xl">
@@ -504,18 +515,19 @@ function PlayerMap({
       return null;
     };
 
-    // Static landmarks (fast travel / towers / dungeons) as the bottom layer.
+    // Static landmarks (fast travel / towers / dungeons) as the bottom layer,
+    // each with its own game compass icon.
     if (showLandmarks) {
       for (const lm of landmarks) {
         const style = LANDMARK_STYLE[lm.type];
         if (!style) continue;
-        L.circleMarker([lm.y, lm.x], {
-          radius: 4,
-          weight: 1.5,
-          color: "#ffffff",
-          fillColor: style.color,
-          fillOpacity: 0.9,
-        })
+        const icon = L.icon({
+          iconUrl: style.icon,
+          iconSize: [style.size, style.size],
+          iconAnchor: [style.size / 2, style.size / 2],
+          className: "pmap-landmark",
+        });
+        L.marker([lm.y, lm.x], { icon })
           .bindTooltip(
             `<div style="font-weight:800">${escapeHtml(lm.name[lang] || lm.name.en)}</div>` +
               `<div>${t(style.label)}${lm.lv ? ` · Lv.${lm.lv}` : ""}</div>`,

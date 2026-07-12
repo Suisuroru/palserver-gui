@@ -873,5 +873,6 @@
  "快速旅行": "Fast travel",
  "頭目塔": "Tower boss",
  "地牢": "Dungeon",
- "校正:點地圖顯示該處座標": "Calibration: click the map to read the coordinate there"
+ "校正:點地圖顯示該處座標": "Calibration: click the map to read the coordinate there",
+ "此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。": "This is a sponsor-only feature — unlock it with a sponsor code on the settings page."
 }
