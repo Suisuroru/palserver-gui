@@ -22,7 +22,7 @@ Browser (React Web UI)
 
 ## Screenshots
 
-> The UI ships in 繁體中文 / English / 日本語 with light & dark themes; players and data in the screenshots are demo content.
+> The UI ships in 繁體中文 / English / 日本語, with three switchable themes (Palworld Classic / Silver / Aurora Emerald), each with a light and dark variant; players and data in the screenshots are demo content.
 
 ![Player management](docs/screenshots/players.png)
 
@@ -55,10 +55,12 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 - Auto-download and install the Palworld server files (via DepotDownloader), or **adopt your existing installation directory in place**
 - Game version check: compares the installed build against the latest on Steam, with one-click server updates
 - Live log streaming (switchable between agent / game / PalDefender sources)
+- Launch options panel: the Steam query port **can be customized** (with duplicate-port checks against other instances); `publiclobby` / `logformat` and other launch flags are now part of settings
+- **Custom Docker container images**: reuse whatever other Palworld image you're already running on Docker; the docker / k8s backend is **no longer locked to a specific platform** (works on macOS/Windows with Docker Desktop installed; k8s is always selectable)
 
 **World & performance settings**
 - Graphical editor for 80+ world settings, grouped by category, with types, ranges and defaults; or edit the raw `PalWorldSettings.ini` directly
-- `Engine.ini` performance tuning (tick rate, network rates, timeouts, GC interval…) with one-click presets
+- `Engine.ini` performance tuning (tick rate, network rates, timeouts, GC interval, performance flags `useperfthreads` / `NoAsyncLoadingThread` / `UseMultithreadForDS`, worker thread count…) with one-click presets
 - Corrupted config detection with "regenerate a clean config" (the broken file is backed up first, never just deleted)
 
 **Player management**
@@ -66,12 +68,18 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 - Kick, ban, whitelist — **works on offline players too** (e.g. unbanning someone)
 - Past-player roster: the agent samples every 15 seconds, keeping playtime, session counts, first/last seen; join/leave timeline
 - Server-wide broadcast, save-now
-- Live map: plots online players on the map (bring your own map image, see note below)
+
+**Map**
+- **Built-in full world map** (Palpagos Islands + Sakurajima + Feybreak, high resolution) — no need to bring your own map image
+- **Live markers for online players** + **last-known positions for offline players**; guild bases, a **wild boss (Alpha Pal) layer**, and landmarks (fast travel points / towers / dungeons, names localized to your UI language)
+- **Full-screen map** (`/map`), one click away from the live map to open in a new tab
+- **Pick coordinates by clicking the map**: for commands that need coordinates (teleport, spawn…), just drop a pin instead of typing numbers
 
 **Console**
 - Full RCON console with command search, categories and parameter forms; dangerous commands require confirmation
 - Player-ID parameters get a player picker (offline players included); item / Pal / egg IDs get an icon search
 - With PalDefender installed, its commands are added automatically
+- Pal and item data updated to **Palworld 1.0 (Feybreak)**; active skills / traits localized (Chinese / Japanese)
 
 **Saves & backups**
 - Scheduled automatic backups: interval, retention count, skip when nobody is online
@@ -81,15 +89,23 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 
 **Mods**
 - One-click install / update / remove for **PalDefender** (anti-cheat, formerly Palguard) and **UE4SS** (Lua/Blueprint mod loader), each with stable and beta channels
-- PalDefender settings panel, Lua mod toggles, pak mod management
+- PalDefender settings panel, Lua mod toggles, pak mod management; **PalDefender's REST API port can be changed**
+- **MOTD login announcement** now has a settings UI
 - File manager: browse, upload, edit and delete files under the server directory
 
 **Stability**
 - Auto-restart: scheduled (fixed interval or daily times), memory threshold, crash recovery (with an hourly cap to avoid infinite restart loops)
 - Broadcasts a countdown and saves the world before planned restarts; manual stops don't count as crashes
 
+**Sponsor early-access features** (unlocked for active sponsors; opens to everyone once the early-access period ends)
+- **Pal stat editor** (via PalSchema): tweak a species' base HP / attack / defense / capture rate etc., **with a separate override for the boss variant**; one-click PalSchema install, a change log, and one-click revert-all
+- **Teleport players**: teleport a player to another player, or to **coordinates picked on the map**
+- **Bulk-give items**: an item icon picker + quantity, grant several at once
+- Custom Pals / eggs, guild base details, landmark names
+
 **Other**
-- Three languages: 繁體中文 / English / 日本語; light / dark themes
+- Three languages: 繁體中文 / English / 日本語; **three themes** (Palworld Classic / Silver / Aurora Emerald) **×** light / dark — Silver and Aurora Emerald are sponsor-exclusive
+- **Drag-to-reorder** server cards on the home page; tabs can be **customized (show / hide / reorder)**; the overview card can be dismissed
 - Connectivity diagnostics: detects your public IP, whether you're behind NAT/CGNAT, plus VPN (Tailscale / Radmin) hosting guides
 - Optional GUI self-update: checks GitHub Releases, verifies SHA256, swaps binaries and restarts itself
 
@@ -123,8 +139,9 @@ If you hit a problem, check the **[FAQ](https://faq.toc.icu/)** first, or ask on
 **Letting friends join the game:** the easiest way is a VPN (Tailscale or Radmin); the GUI's connection card detects your network
 situation and shows matching guides. With a public IP you can also do traditional port forwarding (UDP 8211).
 
-> **About the map background:** the in-game map is Pocketpair's artwork, which we can't bundle, so the live map starts blank —
-> paste an image URL or upload your own screenshot, then align it with the calibration tool.
+> **About the map:** the GUI ships with a built-in full world map (Palpagos Islands / Sakurajima / Feybreak) — no need to
+> bring your own image. Open the "Map" tab or the full-screen `/map` view to see live player positions, last-known
+> positions for offline players, guild bases, and wild bosses.
 
 ---
 
@@ -140,6 +157,8 @@ The agent has exactly one door: **loopback is unauthenticated; everything else n
   which immediately invalidates old codes and links.
 - The token lives in the data folder (mode `0600`), generated on first start and printed in the window.
 - On shared machines set `PALSERVER_REQUIRE_TOKEN=1` so even loopback requires the token.
+- **SteamIDs are masked everywhere**: rosters, logs, player pickers, command output, etc. always show a redacted middle
+  (click to reveal / copy); pairing codes and one-click login links are **blurred by default** to prevent leaks in screenshots.
 
 > The agent manipulates files and processes on the host — **do not expose `:8250` directly to the public internet**.
 > For remote management use a VPN (Tailscale/WireGuard) or put it behind a TLS reverse proxy.
@@ -298,8 +317,8 @@ Push a `v*` tag and the [release workflow](.github/workflows/release.yml) builds
 
 ## Status
 
-**v2 is currently alpha** (`2.0.0-alpha.0`). Everything listed above works, but **the first Release hasn't been
-published yet** — until then, build from source (`pnpm release:exe`). The API may still change.
+**v2 is currently at v2.0.1**, downloadable right now from [Releases](https://github.com/io-software-ai/palserver-gui/releases) —
+everything listed above is live. Still early-stage; the API may continue to change.
 
 Not done yet: multi-host aggregation; the docker backend is still beta (`images/modded` not provided yet); advanced
 PalDefender features like Pal import rules. See [TODO.md](TODO.md) for the roadmap.
