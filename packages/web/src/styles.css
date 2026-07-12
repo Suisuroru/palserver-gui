@@ -147,6 +147,12 @@ body {
   border: 2px solid var(--color-card);
   box-sizing: border-box;
 }
+/* Offline players: dimmed avatar at their last-saved position. */
+.pmap-avatar.pmap-offline {
+  opacity: 0.5;
+  filter: grayscale(0.45);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
 /* Raid warning: red pulsing halo when a player is near another guild's base. */
 .pmap-avatar.pmap-raid {
   animation: pmap-raid-pulse 1.2s ease-in-out infinite;

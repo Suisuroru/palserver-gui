@@ -230,6 +230,9 @@ export async function getPdPlayers(rec: InstanceRecord, ctx: DriverContext): Pro
     );
     const players: PdPlayerSummary[] = (res.Players ?? []).map((raw) => {
       const p = (raw ?? {}) as Record<string, unknown>;
+      const world = (p.WorldLocation ?? {}) as Record<string, unknown>;
+      const wx = Number(world.x);
+      const wy = Number(world.y);
       return {
         name: String(p.Name ?? ""),
         userId: String(p.UserId ?? ""),
@@ -237,6 +240,8 @@ export async function getPdPlayers(rec: InstanceRecord, ctx: DriverContext): Pro
         guildName: String(p.GuildName ?? ""),
         online: String(p.Status ?? "").toLowerCase() === "online",
         ip: String(p.IP ?? ""),
+        worldX: Number.isFinite(wx) ? wx : undefined,
+        worldY: Number.isFinite(wy) ? wy : undefined,
       };
     });
     return {

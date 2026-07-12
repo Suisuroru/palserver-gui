@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar } from "react-icons/fi";
+import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar, FiMoon } from "react-icons/fi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -81,6 +81,7 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [showPlayers, setShowPlayers] = useState(true);
+  const [showOffline, setShowOffline] = useState(false);
   const [showBases, setShowBases] = useState(true);
   const [guildHint, setGuildHint] = useState(false);
 
@@ -114,6 +115,9 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
   }, [refresh]);
 
   const baseCount = guilds.reduce((s, g) => s + g.bases.length, 0);
+  const offlineCount = pdPlayers.filter(
+    (p) => !p.online && p.worldX != null && p.worldY != null,
+  ).length;
   const summary = live?.available
     ? t("在線玩家 {n} 人", { n: live.players.length }) + (baseCount > 0 ? ` · ${t("{n} 個公會據點", { n: baseCount })}` : "")
     : (live?.reason ?? t("伺服器未在運作,地圖無法顯示玩家。"));
@@ -153,6 +157,14 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
                 >
                   <FiUsers className="size-4" /> {t("玩家")}
                 </button>
+                {offlineCount > 0 && (
+                  <button
+                    className={`${btnGhost} inline-flex items-center gap-1.5 ${showOffline ? "border-pal text-pal" : "opacity-60"}`}
+                    onClick={() => setShowOffline((v) => !v)}
+                  >
+                    <FiMoon className="size-4" /> {t("離線玩家")}
+                  </button>
+                )}
                 {guildsUnlocked ? (
                   <button
                     className={`${btnGhost} inline-flex items-center gap-1.5 ${showBases ? "border-pal text-pal" : "opacity-60"}`}
@@ -192,6 +204,7 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
                 guilds={guilds}
                 pdPlayers={pdPlayers}
                 showPlayers={showPlayers}
+                showOffline={showOffline}
                 showBases={showBases}
                 gameData={gameData}
                 onGuildClick={setGuildDetailId}
@@ -338,6 +351,7 @@ function PlayerMap({
   guilds,
   pdPlayers,
   showPlayers,
+  showOffline,
   showBases,
   gameData,
   onGuildClick,
@@ -345,9 +359,11 @@ function PlayerMap({
 }: {
   players: RestPlayer[];
   guilds: PdGuild[];
-  /** PalDefender /players roster — used to match live players to their guild. */
+  /** PalDefender /players roster — matches live players to their guild, and
+   * (when showOffline) provides offline players' last-saved positions. */
   pdPlayers: PdPlayerSummary[];
   showPlayers: boolean;
+  showOffline: boolean;
   showBases: boolean;
   gameData: GameData | null;
   onGuildClick?: (guildId: string) => void;
@@ -473,6 +489,42 @@ function PlayerMap({
       }
     }
 
+    // Offline players at their last-saved position (dimmed avatars). Skip anyone
+    // currently online (they're drawn live below) and anyone without a position.
+    if (showOffline) {
+      const onlineIds = new Set<string>();
+      for (const p of players) {
+        onlineIds.add(p.userId);
+        onlineIds.add(p.playerId);
+      }
+      for (const pp of pdPlayers) {
+        if (pp.online || pp.worldX == null || pp.worldY == null) continue;
+        if (onlineIds.has(pp.userId) || onlineIds.has(pp.playerUid)) continue;
+        const { x, y } = savToMap(pp.worldX, pp.worldY);
+        const iconUrl = avatarIconUrl(pp.userId, gameData);
+        const guild = pp.guildName ? guildByName.get(pp.guildName) : undefined;
+        const ring = guild ? guildColor(guild.id) : "#8a94a3";
+        const icon = L.divIcon({
+          className: "pmap-avatar-wrap",
+          iconSize: [SIZE, SIZE],
+          iconAnchor: [SIZE / 2, SIZE / 2],
+          tooltipAnchor: [0, -SIZE / 2],
+          html: `<span class="pmap-avatar pmap-offline" style="width:${SIZE}px;height:${SIZE}px;border-color:${ring}">${
+            iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="" />` : ""
+          }</span>`,
+        });
+        const marker = L.marker([y, x], { icon, riseOnHover: true });
+        marker.bindTooltip(
+          `<div style="font-weight:800">${escapeHtml(pp.name || "—")}</div>` +
+            (pp.guildName ? `<div style="color:${ring}">${escapeHtml(pp.guildName)}</div>` : "") +
+            `<div>${t("離線")} · ${t("最後位置")} ${Math.round(x)}, ${Math.round(y)}</div>`,
+          { direction: "top", className: "pmap-detail" },
+        );
+        marker.on("click", () => onPlayerClickRef.current?.(pp.userId, pp.name));
+        marker.addTo(group);
+      }
+    }
+
     if (showPlayers)
       for (const p of players) {
         const { x, y } = savToMap(p.location_x, p.location_y);
@@ -511,7 +563,7 @@ function PlayerMap({
         marker.on("click", () => onPlayerClickRef.current?.(p.userId, p.name));
         group.addLayer(marker);
       }
-  }, [players, guilds, pdPlayers, showPlayers, showBases, gameData]);
+  }, [players, guilds, pdPlayers, showPlayers, showOffline, showBases, gameData]);
 
   return <div ref={containerRef} className="h-full w-full rounded-xl bg-card-soft" />;
 }

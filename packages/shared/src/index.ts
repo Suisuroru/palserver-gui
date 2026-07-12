@@ -255,6 +255,10 @@ export interface PdPlayerSummary {
   /** Status 為 Online 時 true。 */
   online: boolean;
   ip: string;
+  /** 最後存檔的世界座標(Unreal;WorldLocation)。前端走 savToMap 畫到地圖,
+   * 讓離線玩家也能在地圖上顯示最後位置。拿不到時為 undefined。 */
+  worldX?: number;
+  worldY?: number;
 }
 
 /** PalDefender /players 回傳:存檔內所有玩家(含離線)。 */
