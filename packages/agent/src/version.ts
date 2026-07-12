@@ -160,8 +160,10 @@ export function cachedVersionSummary(
   rec: InstanceRecord,
   ctx: DriverContext,
 ): { gameVersion: string | null; updateAvailable: boolean | null } {
+  // native (Windows or Linux): DepotDownloader manifest comparison works on
+  // any OS — the manifest files live under serverRoot/.DepotDownloader.
+  // docker/k8s: version comes from REST API only (manifest is inside container).
   if (rec.backend !== "native") {
-    // docker/k8s: 版本來自 REST API（同步由 getVersionStatus 寫入快取），無 manifest 比對
     return { gameVersion: readGameVersion(ctx), updateAvailable: null };
   }
   const latest = latestMemo ?? readLatestCache();
@@ -176,21 +178,6 @@ export async function getVersionStatus(
   rec: InstanceRecord,
   ctx: DriverContext,
 ): Promise<VersionStatus> {
-  if (rec.backend !== "native") {
-    // docker/k8s: 版本來自 REST API，無 manifest 比對（manifest 在容器/Pod 內）
-    const live = await liveGameVersion(rec);
-    return {
-      supported: true,
-      reason: live ? undefined : "伺服器未運行中，無法取得版本",
-      gameVersion: live,
-      installedBuild: null,
-      latestBuild: null,
-      latestUpdatedAt: null,
-      updateAvailable: null,
-      checkedAt: null,
-    };
-  }
-
   // Refresh the friendly version whenever the server is up; otherwise reuse
   // whatever we last saw.
   let gameVersion = readGameVersion(ctx);
@@ -200,6 +187,26 @@ export async function getVersionStatus(
     writeGameVersion(ctx, gameVersion);
   }
 
+  if (rec.backend !== "native") {
+    // docker/k8s: the game binary lives inside the container/Pod image.
+    // We can't read DepotDownloader manifests from outside. Instead we
+    // compare the live game version string against Steam's latest known
+    // version. This is less precise than manifest comparison (version
+    // strings can lag behind depots), but it works across all backends.
+    const latest = await fetchLatest();
+    return {
+      supported: true,
+      reason: live ? undefined : "伺服器未運行中，無法取得版本",
+      gameVersion,
+      installedBuild: null,
+      latestBuild: latest?.manifests["2394011"] ?? latest?.buildId ?? null,
+      latestUpdatedAt: latest?.updatedAt ?? null,
+      updateAvailable: null,
+      checkedAt: latest?.fetchedAt ?? null,
+    };
+  }
+
+  // native (Windows or Linux): exact manifest comparison via DepotDownloader.
   const latest = await fetchLatest();
   const installed = installedManifests(serverRoot(rec, ctx));
   const { updateAvailable, installedBuild } = latest

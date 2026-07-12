@@ -88,3 +88,21 @@ export function buildLaunchArgs(opts: LaunchOptions | undefined): string[] {
   }
   return args;
 }
+
+/** Map launchOptions + queryPort to thijsvanloef image env vars (for k8s). */
+export function buildLaunchEnv(
+  opts: LaunchOptions | undefined,
+  queryPort?: number,
+): Record<string, string> {
+  const o = opts ?? {};
+  const env: Record<string, string> = {};
+  const anyThreadFlag =
+    o.useperfthreads === true ||
+    o.UseMultithreadForDS === true ||
+    o.NoAsyncLoadingThread === true;
+  env.MULTITHREADING = anyThreadFlag ? "true" : "false";
+  env.COMMUNITY = o.publiclobby === false ? "false" : "true";
+  env.LOG_FORMAT_TYPE = String(o.logformat ?? "text");
+  if (queryPort) env.QUERY_PORT = String(queryPort);
+  return env;
+}

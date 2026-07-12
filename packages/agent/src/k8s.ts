@@ -3,7 +3,8 @@ import { PassThrough } from "node:stream";
 import type { InstanceStats, InstanceStatus, LogSource, LogSourceId } from "@palserver/shared";
 import type { ServerDriver, DriverContext } from "./driver.js";
 import type { InstanceRecord } from "./store.js";
-import { execInPod, findPodName, loadKubeConfig } from "./k8s-files.js";
+import { execInPod, findPodName, loadKubeConfig, readFileInPod, writeFileInPod } from "./k8s-files.js";
+import { mergeEnginePatch } from "./engine-ini-merge.js";
 
 /**
  * k8s backend driver.
@@ -89,6 +90,10 @@ export const k8sDriver: ServerDriver = {
       { name: statefulSet, namespace, body: patch },
       { middleware: [strategicMergeMiddleware()] } as unknown as k8s.Configuration,
     );
+    if (rec.engineSettings && Object.keys(rec.engineSettings).length > 0) {
+      await new Promise((r) => setTimeout(r, 3000));
+      await applyEngineIniK8s(rec).catch(() => {});
+    }
   },
 
   async stop(rec, _ctx): Promise<void> {
@@ -310,6 +315,34 @@ export function computeCpuPercent(
   const wallMicros = (atMs - previous.atMs) * 1000;
   if (wallMicros <= 0) return null;
   return Math.max(0, (usageMicros - previous.usageMicros) / wallMicros * 100);
+}
+
+const K8S_ENGINE_INI = "Pal/Saved/Config/LinuxServer/Engine.ini";
+
+/** Re-apply managed Engine.ini into the running Pod, then kill PID 1 to restart. */
+export async function applyEngineIniK8s(rec: InstanceRecord): Promise<void> {
+  if (!rec.engineSettings || Object.keys(rec.engineSettings).length === 0) return;
+  const kc = loadKubeConfig();
+  const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+  const podName = await findPodName(coreApi, rec.k8sNamespace!, rec.k8sStatefulSet!).catch(() => null);
+  if (!podName) return;
+  const existing = await readFileInPod(rec, K8S_ENGINE_INI).catch(() => "");
+  const merged = mergeEnginePatch(existing, rec.engineSettings!);
+  await writeFileInPod(rec, K8S_ENGINE_INI, merged);
+  await execInPod(rec, ["kill", "1"]).catch(() => {});
+}
+
+/** k8s rolling restart via annotation patch. */
+export async function rolloutRestart(rec: InstanceRecord): Promise<void> {
+  const kc = loadKubeConfig();
+  const appsApi = kc.makeApiClient(k8s.AppsV1Api);
+  const patch = {
+    spec: { template: { metadata: { annotations: { "kubectl.kubernetes.io/restartedAt": new Date().toISOString() } } } },
+  };
+  await appsApi.patchNamespacedStatefulSet(
+    { name: rec.k8sStatefulSet!, namespace: rec.k8sNamespace!, body: patch },
+    { middleware: [strategicMergeMiddleware()] } as unknown as k8s.Configuration,
+  );
 }
 
 // Keep the historical k8s.ts import surface for saves.ts and engine-ini.ts.

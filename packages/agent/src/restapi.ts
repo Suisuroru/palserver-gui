@@ -1,10 +1,12 @@
 import type {
+  GameDataSnapshot,
   LiveStatus,
   RestMetrics,
   RestPlayer,
   RestServerInfo,
 } from "@palserver/shared";
 import type { InstanceRecord } from "./store.js";
+import * as dockerOps from "./docker.js";
 
 /**
  * Thin proxy over the Palworld dedicated server's own REST API
@@ -21,12 +23,17 @@ class RestError extends Error {
   }
 }
 
-/** Docker publishes the REST port on an ephemeral host port; native runs it
- * on the configured port on localhost; k8s exposes it through a ClusterIP
- * Service (<service>.<namespace>) reachable from the agent. */
-function baseUrl(rec: InstanceRecord): string {
+/** Docker publishes the REST port on an ephemeral host port (HostPort "0");
+ * native runs it on the configured port on localhost; k8s exposes it through
+ * a ClusterIP Service (<service>.<namespace>) reachable from the agent. */
+async function baseUrl(rec: InstanceRecord): Promise<string> {
   if (rec.backend === "k8s" && rec.k8sServiceName && rec.k8sNamespace) {
     return `http://${rec.k8sServiceName}.${rec.k8sNamespace}:${rec.settings.RESTAPIPort}/v1/api`;
+  }
+  if (rec.backend === "docker") {
+    const hostPort = await dockerOps.restHostPort(rec);
+    if (hostPort) return `http://127.0.0.1:${hostPort}/v1/api`;
+    return `http://127.0.0.1:${rec.settings.RESTAPIPort}/v1/api`;
   }
   return `http://127.0.0.1:${rec.settings.RESTAPIPort}/v1/api`;
 }
@@ -47,9 +54,10 @@ async function call<T>(
 ): Promise<T> {
   requireRest(rec);
   const auth = Buffer.from(`admin:${rec.settings.AdminPassword}`).toString("base64");
+  const base = await baseUrl(rec);
   let res: Response;
   try {
-    res = await fetch(`${baseUrl(rec)}${path}`, {
+    res = await fetch(`${base}${path}`, {
       method: init?.method ?? "GET",
       headers: {
         Authorization: `Basic ${auth}`,
@@ -73,6 +81,8 @@ export const rest = {
   metrics: (rec: InstanceRecord) => call<RestMetrics>(rec, "/metrics"),
   players: async (rec: InstanceRecord) =>
     (await call<{ players: RestPlayer[] }>(rec, "/players")).players ?? [],
+  /** Palworld 1.0+: world actor snapshot. */
+  gameData: (rec: InstanceRecord) => call<GameDataSnapshot>(rec, "/game-data"),
 
   announce: (rec: InstanceRecord, message: string) =>
     call<void>(rec, "/announce", { method: "POST", body: { message } }),
@@ -87,8 +97,7 @@ export const rest = {
     call<void>(rec, "/shutdown", { method: "POST", body: { waittime, message } }),
 };
 
-/** One round-trip for the players tab: info + metrics + players, degrading to
- * `available: false` with a reason instead of failing the whole request. */
+/** One round-trip for the players tab: info + metrics + players. */
 export async function getLiveStatus(rec: InstanceRecord): Promise<LiveStatus> {
   try {
     const [info, metrics, players] = await Promise.all([
