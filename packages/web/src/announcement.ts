@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getLang } from "./i18n";
 
 /**
  * 公告來源:GitHub repo 裡的 announcement.md,讓公告能推送給所有使用者而不必重新
@@ -18,12 +19,15 @@ export interface Announcement {
   enabled?: boolean;
   /** frontmatter `until: YYYY-MM-DD`:過了這天就自動不再顯示。 */
   until?: string;
+  /** frontmatter `lang: zh|en|ja`:只對該介面語言顯示;省略 = 所有語言都顯示。 */
+  lang?: string;
 }
 
-/** 是否還要顯示這則公告(未手動關閉、且未過期)。 */
+/** 是否還要顯示這則公告(未手動關閉、未過期、且符合目前介面語言)。 */
 export function isActive(a: Announcement): boolean {
   if (a.enabled === false) return false;
   if (a.until && new Date().toISOString().slice(0, 10) > a.until) return false;
+  if (a.lang && a.lang !== getLang()) return false;
   return true;
 }
 
@@ -49,6 +53,7 @@ function parseOne(raw: string): Announcement | null {
     body: m[2].trim(),
     enabled: meta.enabled !== "false",
     until: meta.until || undefined,
+    lang: meta.lang || undefined,
   };
 }
 

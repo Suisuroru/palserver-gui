@@ -18,6 +18,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = process.env.OUT_DIR || path.resolve(HERE, "../public/assets");
 const AGENT = process.env.AGENT_URL || "http://127.0.0.1:8250";
 const TOKEN = process.env.AGENT_TOKEN || "";
+// APP_URL = App 本身的位址(可跟 agent 不同,例如 vite dev localhost:5173 連本機 agent)。
+const APP = process.env.APP_URL || AGENT;
 const W = 1320;
 
 const argv = process.argv.slice(2);
@@ -40,27 +42,37 @@ async function shot(page, lang, name) {
   console.log("wrote", lang + "/" + name + ".jpg");
 }
 
-/** 新 context:預設注入語言;connected=true 時再注入連線(否則走首次連線畫面)。 */
-async function ctxFor(browser, lang, connected) {
+/** 新 context:注入語言;connected 時注入連線;markSeen 時把公告標為已看(略過彈窗)。 */
+async function ctxFor(browser, lang, connected, markSeen) {
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript(
-    ([lang, conn, connected, seen]) => {
+    ([lang, conn, connected, markSeen, seen]) => {
       localStorage.setItem("palserver.lang", lang);
       if (connected) {
         localStorage.setItem("palserver.connection", conn);
-        // 標記公告為已看,避免彈窗擋住導覽(截 announcement 時另用 markUnseen 的 context)。
-        localStorage.setItem("palserver.announcementsSeen", seen);
+        if (markSeen) localStorage.setItem("palserver.announcementsSeen", seen);
+        else localStorage.removeItem("palserver.announcementsSeen");
       } else {
         localStorage.removeItem("palserver.connection");
       }
     },
-    [lang, CONN, connected, JSON.stringify(["2026-07-welcome-2-0", "2026-07-10-palguard-1-0"])],
+    [lang, CONN, connected, markSeen, JSON.stringify(["2026-07-welcome-2-0", "2026-07-10-palguard-1-0"])],
   );
   return ctx;
 }
 
+/** 逐則點掉公告彈窗,避免擋住導覽。 */
+async function dismissAnnounce(page) {
+  for (let i = 0; i < 8; i++) {
+    const btn = page.locator("button", { hasText: /開始|下一則|Next|Start|始め|次|閉じる|Close|關閉|了解/ }).first();
+    if (await btn.count().then((c) => c > 0).catch(() => false)) {
+      await btn.click().catch(() => {});
+      await sleep(300);
+    } else break;
+  }
+}
+
 async function openInstanceTab(page, tab) {
-  // Dashboard → 點第一台伺服器 → 等分頁列 → 點目標分頁。
   await page.waitForSelector(".grid button, [data-testid='create-server']", { timeout: 15000 });
   const cards = page.locator(".grid button").filter({ has: page.locator("strong") });
   await cards.first().click();
@@ -73,41 +85,37 @@ async function main() {
   const browser = await chromium.launch();
   for (const lang of LANGS) {
     if (WANT.includes("login")) {
-      const ctx = await ctxFor(browser, lang, false);
+      const ctx = await ctxFor(browser, lang, false, false);
       const page = await ctx.newPage();
-      // ?setup 強制顯示「第一次連線」畫面(否則 same-origin agent 會自動連線跳過)。
-      await page.goto(AGENT + "/?setup", { waitUntil: "domcontentloaded" });
-      await sleep(1500);
+      // ?setup 強制顯示「第一次連線」畫面(需純網頁版 App,agent 同源會自動連線跳過)。
+      await page.goto(APP + "/?setup", { waitUntil: "domcontentloaded" });
+      await sleep(1800);
       await shot(page, lang, "login");
       await ctx.close();
     }
-    if (WANT.some((s) => ["announcement", "engine", "mods"].includes(s))) {
-      const ctx = await ctxFor(browser, lang, true);
+    if (WANT.includes("announcement")) {
+      // 連線但不標已看 → 公告彈窗會自動跳(內文依語言 filter)。
+      const ctx = await ctxFor(browser, lang, true, false);
       const page = await ctx.newPage();
-      await page.goto(AGENT, { waitUntil: "domcontentloaded" });
+      await page.goto(APP, { waitUntil: "domcontentloaded" });
+      await sleep(3000); // 等公告從遠端載入 + 彈窗出現
+      await shot(page, lang, "announcement");
+      await ctx.close();
+    }
+    if (WANT.includes("engine") || WANT.includes("mods")) {
+      const ctx = await ctxFor(browser, lang, true, true);
+      const page = await ctx.newPage();
+      await page.goto(APP, { waitUntil: "domcontentloaded" });
       await sleep(1800);
-      if (WANT.includes("announcement")) {
-        // 公告彈窗會在 Dashboard 自動跳(未看過 + 啟用中的公告)。
-        const popup = page.locator(".pmap-detail, [class*='overlay'], [role='dialog']");
-        await sleep(600);
-        await shot(page, lang, "announcement");
-      }
-      // 關掉可能擋路的公告彈窗:逐則點主要按鈕,最多幾次。
-      for (let i = 0; i < 6; i++) {
-        const btn = page.locator("button", { hasText: /開始|下一則|Next|Start|始め|次/ }).first();
-        if (await btn.count().then((c) => c > 0).catch(() => false)) {
-          await btn.click().catch(() => {});
-          await sleep(300);
-        } else break;
-      }
+      await dismissAnnounce(page);
       if (WANT.includes("engine")) {
         await openInstanceTab(page, "engine");
         await shot(page, lang, "engine");
-        await page.goBack().catch(() => {});
       }
       if (WANT.includes("mods")) {
-        await page.goto(AGENT, { waitUntil: "domcontentloaded" });
+        await page.goto(APP, { waitUntil: "domcontentloaded" });
         await sleep(1200);
+        await dismissAnnounce(page);
         await openInstanceTab(page, "mods");
         await shot(page, lang, "mods");
       }
