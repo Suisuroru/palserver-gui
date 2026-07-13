@@ -41,7 +41,7 @@ const THEMES: ThemeDef[] = [
   },
   {
     family: "silver",
-    name: "白銀 · Vercel",
+    name: "白銀",
     blurb: "純黑白銀 / 極簡光暈",
     free: false,
     preview: {
@@ -57,6 +57,36 @@ const THEMES: ThemeDef[] = [
     preview: {
       light: { bg: "#ecfdf4", card: "#ffffff", accent: "#10b981", ink: "#0f2b20", accentText: "#ffffff" },
       dark: { bg: "#123a2b", card: "#1b4a38", accent: "#24e39a", ink: "#ecfdf3", accentText: "#06241a" },
+    },
+  },
+  {
+    family: "lilac",
+    name: "午夜紫",
+    blurb: "薰衣草晝 / 午夜紫夜",
+    free: false,
+    preview: {
+      light: { bg: "#f6f2fe", card: "#ffffff", accent: "#8b5cf6", ink: "#2a2140", accentText: "#ffffff" },
+      dark: { bg: "#17122a", card: "#221a3c", accent: "#b79bff", ink: "#f0eafb", accentText: "#1a1030" },
+    },
+  },
+  {
+    family: "cherry",
+    name: "櫻花粉",
+    blurb: "淡櫻晝 / 深梅玫夜",
+    free: false,
+    preview: {
+      light: { bg: "#fdf1f7", card: "#ffffff", accent: "#ee5fa0", ink: "#40222f", accentText: "#ffffff" },
+      dark: { bg: "#2a1620", card: "#3a2130", accent: "#ff8ab8", ink: "#fdeef5", accentText: "#2a0f1c" },
+    },
+  },
+  {
+    family: "weasel",
+    name: "疾旋鼬 × 桃旋鼬",
+    blurb: "靛紫 × 蜜桃雙色",
+    free: false,
+    preview: {
+      light: { bg: "#fdf2ec", card: "#ffffff", accent: "#6366f1", ink: "#2a2442", accentText: "#ffffff" },
+      dark: { bg: "#191630", card: "#241f40", accent: "#a5a4ff", ink: "#f2eefa", accentText: "#12102a" },
     },
   },
 ];
@@ -183,7 +213,7 @@ export function ThemePicker({ entitled, onClose }: { entitled: boolean; onClose:
         {lockedHint && !entitled && (
           <p className="inline-flex items-center gap-2 rounded-cute border-2 border-sun/40 bg-sun/10 px-3 py-2 text-xs font-bold text-sun">
             <FiLock className="size-4 shrink-0" />
-            {t("白銀 / 翡翠為贊助者專屬主題,請在下方輸入贊助者識別碼解鎖。")}
+            {t("帶星號的主題為贊助者專屬,請在下方輸入贊助者識別碼解鎖。")}
           </p>
         )}
       </div>

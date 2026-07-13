@@ -10,7 +10,7 @@ import { useI18n } from "./i18n";
  * main.tsx 在 React 掛載前先套用避免閃色。舊值 "sponsor" 遷移為 "silver-dark"。
  */
 
-export const THEME_FAMILIES = ["pal", "silver", "emerald"] as const;
+export const THEME_FAMILIES = ["pal", "silver", "emerald", "lilac", "cherry", "weasel"] as const;
 export type ThemeFamily = (typeof THEME_FAMILIES)[number];
 
 /** 存檔/套用用的完整主題值。pal 家族沿用舊的 auto/light/dark(向後相容)。 */
@@ -21,13 +21,22 @@ export type ThemeMode =
   | "silver-light"
   | "silver-dark"
   | "emerald-light"
-  | "emerald-dark";
+  | "emerald-dark"
+  | "lilac-light"
+  | "lilac-dark"
+  | "cherry-light"
+  | "cherry-dark"
+  | "weasel-light"
+  | "weasel-dark";
 
 const KEY = "palserver.theme";
 
 export function themeFamily(m: ThemeMode): ThemeFamily {
   if (m.startsWith("silver")) return "silver";
   if (m.startsWith("emerald")) return "emerald";
+  if (m.startsWith("lilac")) return "lilac";
+  if (m.startsWith("cherry")) return "cherry";
+  if (m.startsWith("weasel")) return "weasel";
   return "pal";
 }
 
@@ -50,7 +59,10 @@ export function loadThemeMode(): ThemeMode {
     if (
       v === "light" || v === "dark" ||
       v === "silver-light" || v === "silver-dark" ||
-      v === "emerald-light" || v === "emerald-dark"
+      v === "emerald-light" || v === "emerald-dark" ||
+      v === "lilac-light" || v === "lilac-dark" ||
+      v === "cherry-light" || v === "cherry-dark" ||
+      v === "weasel-light" || v === "weasel-dark"
     ) {
       return v;
     }
