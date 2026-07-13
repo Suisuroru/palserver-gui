@@ -38,6 +38,8 @@ export function InstanceSettingsTab({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
+      <ServerFilesCard client={client} instanceId={detail.id} />
+
       {detail.backend === "native" && (
         <>
           <ServerPathCard
@@ -53,8 +55,6 @@ export function InstanceSettingsTab({
       )}
 
       <LaunchOptionsCard client={client} instanceId={detail.id} category="general" />
-
-      <ServerFilesCard client={client} instanceId={detail.id} />
 
       <TabVisibilityCard />
 
