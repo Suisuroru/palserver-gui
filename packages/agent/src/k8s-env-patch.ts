@@ -1,5 +1,6 @@
 import * as k8s from "@kubernetes/client-node";
-import type { WorldSettings } from "@palserver/shared";
+import type { LaunchOptions, WorldSettings } from "@palserver/shared";
+import { buildLaunchEnv } from "@palserver/shared";
 import type { InstanceRecord } from "./store.js";
 import { loadKubeConfig } from "./k8s.js";
 import { INI_TO_ENV, settingsToEnvPatch } from "./env-mapping.js";
@@ -115,4 +116,40 @@ export async function applyEnvPatchK8s(
   }
 
   return { unsupported, applied };
+}
+
+/** Apply launchOptions + queryPort as env vars on the StatefulSet. */
+export async function applyLaunchOptionsK8s(
+  rec: InstanceRecord,
+  launchOptions: LaunchOptions | undefined,
+  queryPort?: number,
+): Promise<string[]> {
+  const envPatch = buildLaunchEnv(launchOptions, queryPort);
+  if (Object.keys(envPatch).length === 0) return [];
+  const kc = loadKubeConfig();
+  const appsApi = kc.makeApiClient(k8s.AppsV1Api);
+  const sts = await appsApi.readNamespacedStatefulSet({ name: rec.k8sStatefulSet!, namespace: rec.k8sNamespace! });
+  const containers = sts.spec?.template?.spec?.containers ?? [];
+  const containerIndex = Math.max(0, containers.findIndex((item) => item.name === "palworld-server"));
+  const container = containers[containerIndex];
+  if (!container) throw new Error("找不到 game-server 容器定義");
+  const existingEnv = (container.env ?? []).map((e) => ({ ...e }));
+  const applied: string[] = [];
+  for (const [envName, envValue] of Object.entries(envPatch)) {
+    const idx = existingEnv.findIndex((e) => e.name === envName);
+    if (idx >= 0) {
+      if (existingEnv[idx].valueFrom) continue;
+      existingEnv[idx] = { ...existingEnv[idx], name: envName, value: envValue };
+    } else {
+      existingEnv.push({ name: envName, value: envValue });
+    }
+    applied.push(envName);
+  }
+  if (applied.length === 0) return [];
+  const jsonPatch = [{ op: container.env ? "replace" : "add", path: `/spec/template/spec/containers/${containerIndex}/env`, value: existingEnv }];
+  await appsApi.patchNamespacedStatefulSet(
+    { name: rec.k8sStatefulSet!, namespace: rec.k8sNamespace!, body: jsonPatch },
+    { middleware: [jsonPatchMiddleware()] } as unknown as k8s.Configuration,
+  );
+  return applied;
 }

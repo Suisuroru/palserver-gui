@@ -437,6 +437,34 @@ export interface RestMetrics {
   days: number;
 }
 
+/* ── REST /game-data (Palworld 1.0+): world actor snapshot ── */
+
+export interface GameDataActor {
+  Type: "Character" | "PalBox";
+  UnitType?: "Player" | "OtomoPal" | "BaseCampPal" | "WildPal" | "NPC";
+  InstanceID: string;
+  NickName: string;
+  TrainerInstanceID?: string;
+  TrainerNickName?: string;
+  userid?: string;
+  ip?: string;
+  level?: number;
+  HP?: number;
+  MaxHP?: number;
+  GuildID?: string;
+  GuildName?: string;
+  LocationX: number;
+  LocationY: number;
+  LocationZ: number;
+}
+
+export interface GameDataSnapshot {
+  Time: string;
+  FPS: number;
+  AverageFPS: number;
+  ActorData: GameDataActor[];
+}
+
 /* World-coordinate conversion. The REST API reports Unreal/save-file
  * coordinates; the in-game map uses a [-1000, 1000] square. Offsets are the
  * midpoints of the sav bounds and the scale is sav units per map unit, from

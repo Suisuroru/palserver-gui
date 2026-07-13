@@ -329,23 +329,91 @@ export async function activeWorldGuidAsync(rec: InstanceRecord, ctx: DriverConte
 }
 
 function listBackups(ctx: DriverContext): BackupInfo[] {
+  // Agent-created backups: tar.gz files under <instanceDir>/backups.
   const dir = backupsDir(ctx);
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(".tar.gz"))
-    .map((name) => {
-      const stat = fs.statSync(path.join(dir, name));
-      // <guid>__<iso-ish timestamp>.tar.gz
-      const [guid] = name.replace(/\.tar\.gz$/, "").split("__");
-      return {
-        name,
-        worldGuid: guid ?? "",
-        sizeBytes: stat.size,
-        createdAt: new Date(stat.mtimeMs).toISOString(),
-      } satisfies BackupInfo;
-    })
+  const agentBackups: BackupInfo[] = fs.existsSync(dir)
+    ? fs.readdirSync(dir)
+        .filter((f) => f.endsWith(".tar.gz"))
+        .map((name) => {
+          const stat = fs.statSync(path.join(dir, name));
+          const [guid] = name.replace(/\.tar\.gz$/, "").split("__");
+          return {
+            name,
+            worldGuid: guid ?? "",
+            sizeBytes: stat.size,
+            createdAt: new Date(stat.mtimeMs).toISOString(),
+          } satisfies BackupInfo;
+        })
+    : [];
+
+  // Also scan for image-level automatic backups (thijsvanloef / self-built):
+  // these live at <savedRoot>/SaveGames/0/<guid>/backup/world/<timestamp>/
+  // and are directories containing Level.sav + Players/.
+  const root = path.join(ctx.instanceDir, "saved");
+  const saveGames0 = path.join(root, "SaveGames", "0");
+  const imageBackups: BackupInfo[] = [];
+  if (fs.existsSync(saveGames0)) {
+    for (const guid of fs.readdirSync(saveGames0)) {
+      const worldBackupDir = path.join(saveGames0, guid, "backup", "world");
+      if (!fs.existsSync(worldBackupDir)) continue;
+      for (const ts of fs.readdirSync(worldBackupDir)) {
+        const tsDir = path.join(worldBackupDir, ts);
+        if (!fs.statSync(tsDir).isDirectory()) continue;
+        // Sum file sizes in the backup directory.
+        let sizeBytes = 0;
+        try {
+          for (const f of fs.readdirSync(tsDir)) {
+            const s = fs.statSync(path.join(tsDir, f));
+            sizeBytes += s.isFile() ? s.size : 0;
+          }
+        } catch { /* skip */ }
+        imageBackups.push({
+          name: ts,
+          worldGuid: guid,
+          sizeBytes,
+          createdAt: new Date(fs.statSync(tsDir).mtimeMs).toISOString(),
+        });
+      }
+    }
+  }
+
+  return [...agentBackups, ...imageBackups]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** List thijsvanloef image's automatic backups from the Pod's PVC.
+ *  These live at Pal/Saved/SaveGames/0/<guid>/backup/world/<timestamp>/
+ *  and are directories containing Level.sav + Players/. */
+async function listBackupsK8s(rec: InstanceRecord): Promise<BackupInfo[]> {
+  const active = await activeWorldGuidK8s(rec);
+  if (!active) return [];
+  const backupRoot = `${K8S_SAVEGAMES_REL}/${active}/backup/world`;
+  let dirs: string[];
+  try {
+    dirs = (await listDirInPod(rec, backupRoot)).split("\n").map((s) => s.trim()).filter(Boolean);
+  } catch {
+    return []; // no backup/world dir
+  }
+  const backups: BackupInfo[] = [];
+  for (const ts of dirs) {
+    try {
+      // Get total size of the backup directory
+      const sizeOut = await execInPod(rec, ["du", "-sb", `/palworld/${backupRoot}/${ts}`]);
+      const sizeBytes = Number(sizeOut.trim().split(/\s+/)[0]) || 0;
+      // Get modification time
+      const statOut = await execInPod(rec, ["stat", "-c", "%Y", `/palworld/${backupRoot}/${ts}`]);
+      const mtime = Number(statOut.trim()) * 1000;
+      backups.push({
+        name: `${ts}`,
+        worldGuid: active,
+        sizeBytes,
+        createdAt: new Date(mtime || Date.now()).toISOString(),
+      });
+    } catch {
+      /* skip unreadable entries */
+    }
+  }
+  return backups.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 /** Everything but the schedule, which the scheduler owns and routes merges in. */
@@ -353,14 +421,12 @@ export async function getSavesStatus(
   rec: InstanceRecord,
   ctx: DriverContext,
 ): Promise<Omit<SavesStatus, "schedule">> {
-  if (rec.backend === "docker") {
-    return { supported: false, reason: "存檔管理目前不支援 Docker 模式的實例", worlds: [], backups: [] };
-  }
   // k8s: worlds live in the Pod, reached over exec; the server must be up to
   // list anything. listWorldsK8s returns [] on a missing SaveGames dir.
   if (rec.backend === "k8s") {
-    return { supported: true, worlds: await listWorldsK8s(rec), backups: listBackups(ctx) };
+    return { supported: true, worlds: await listWorldsK8s(rec), backups: await listBackupsK8s(rec) };
   }
+  // native + docker: both read the host filesystem directly (docker via bind-mount).
   const root = savedRoot(rec, ctx);
   if (!fs.existsSync(saveGamesDir(root))) {
     return {

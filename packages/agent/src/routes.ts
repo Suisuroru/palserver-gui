@@ -186,11 +186,12 @@ export function registerRoutes(
       instanceCount: store.list().length,
       authenticated,
       platform: process.platform,
-      // docker:看 Docker 是否真的連得上(Docker Desktop 讓 macOS/Windows 也能跑),
-      // 而非以平台判斷;k8s:遙控叢集內的 StatefulSet,與 agent 這台的 OS 無關,一律提供。
-      availableBackends: dockerVersion !== "unavailable"
-        ? ["native", "docker", "k8s"]
-        : ["native", "k8s"],
+      // docker 在 Unix 系統（Linux/macOS）提供；Windows WSL2 的 UDP 不可靠，
+      // 不能跑遊戲伺服器。所有平台都可管理遠端 k8s 實例。
+      availableBackends:
+        process.platform !== "win32" && dockerVersion !== "unavailable"
+          ? ["native", "docker", "k8s"]
+          : ["native", "k8s"],
     };
   });
 
@@ -1197,6 +1198,10 @@ export function registerRoutes(
     }
     store.update(rec.id, patch);
     const updated = store.get(rec.id)!;
+    if (updated.backend === "k8s") {
+      const { applyLaunchOptionsK8s } = await import("./k8s-env-patch.js");
+      await applyLaunchOptionsK8s(updated, updated.launchOptions, updated.queryPort).catch(() => {});
+    }
     return {
       launchOptions: updated.launchOptions ?? {},
       queryPort: updated.queryPort ?? null,
@@ -1217,19 +1222,40 @@ export function registerRoutes(
 
   app.post("/api/instances/:id/update", async (req, reply) => {
     const rec = getOr404((req.params as { id: string }).id);
-    if (rec.backend !== "native") {
-      return reply.code(409).send({ error: "更新目前僅支援原生模式的實例" });
+
+    if (rec.backend === "native") {
+      if ((await driverOf(rec).status(rec, ctxOf(rec))).status === "running") {
+        return reply.code(409).send({ error: "請先停止伺服器再更新" });
+      }
+      if (isInstalling(rec.id)) {
+        return reply.code(409).send({ error: "更新已在進行中" });
+      }
+      await snapshotBefore(rec, "server update");
+      updateServer(rec, ctxOf(rec));
+      reply.code(202);
+      return { started: true, hint: "更新進度會顯示在日誌分頁(agent 來源)" };
     }
-    if ((await driverOf(rec).status(rec, ctxOf(rec))).status === "running") {
-      return reply.code(409).send({ error: "請先停止伺服器再更新" });
+
+    if (rec.backend === "docker") {
+      try {
+        const image = await dockerOps.updateImage(rec, store.instanceDir(rec.id));
+        return { started: true, image, hint: "已拉取最新映像檔並重建容器" };
+      } catch (err) {
+        return reply.code(409).send({ error: `映像檔更新失敗：${err instanceof Error ? err.message : String(err)}` });
+      }
     }
-    if (isInstalling(rec.id)) {
-      return reply.code(409).send({ error: "更新已在進行中" });
+
+    if (rec.backend === "k8s") {
+      const { rolloutRestart } = await import("./k8s.js");
+      try {
+        await rolloutRestart(rec);
+        return { started: true, hint: "已觸發滾動重啟,Pod 會重建並拉取最新映像檔" };
+      } catch (err) {
+        return reply.code(409).send({ error: `滾動重啟失敗：${err instanceof Error ? err.message : String(err)}` });
+      }
     }
-    await snapshotBefore(rec, "server update");
-    updateServer(rec, ctxOf(rec));
-    reply.code(202);
-    return { started: true, hint: "更新進度會顯示在日誌分頁(agent 來源)" };
+
+    return reply.code(409).send({ error: "不支援的後端" });
   });
 
   // ── automatic restarts ──

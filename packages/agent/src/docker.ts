@@ -3,7 +3,9 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import Docker from "dockerode";
 import type { InstanceStatus, InstanceStats, WorldSettings } from "@palserver/shared";
+import { buildLaunchArgs } from "@palserver/shared";
 import { CONTAINER_PREFIX, IMAGES, INSTANCE_LABEL } from "./env.js";
+import { mergeEnginePatch } from "./engine-ini-merge.js";
 import type { InstanceRecord } from "./store.js";
 import { renderPalWorldSettingsIni } from "./settings-ini.js";
 
@@ -56,6 +58,17 @@ export function writeConfig(instanceDir: string, settings: WorldSettings): void 
   );
 }
 
+/** Re-apply managed Engine.ini tweaks into the bind-mounted saved dir before
+ *  container start. The server resets Engine.ini on shutdown; like native's
+ *  writeIni(), we re-apply from the store on every start. */
+function applyEngineIniDocker(rec: InstanceRecord, instanceDir: string): void {
+  if (!rec.engineSettings || Object.keys(rec.engineSettings).length === 0) return;
+  const file = path.join(instanceDir, "saved", "Config", "LinuxServer", "Engine.ini");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const existing = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  fs.writeFileSync(file, mergeEnginePatch(existing, rec.engineSettings));
+}
+
 export async function createContainer(
   rec: InstanceRecord,
   instanceDir: string,
@@ -66,13 +79,21 @@ export async function createContainer(
   const bindings: Record<string, { HostPort: string }[]> = {
     "8211/udp": [{ HostPort: String(rec.gamePort) }],
   };
+  if (rec.queryPort) {
+    ports[`${rec.queryPort}/udp`] = {};
+    bindings[`${rec.queryPort}/udp`] = [{ HostPort: String(rec.queryPort) }];
+  }
   if (rec.settings.RESTAPIEnabled) {
     ports["8212/tcp"] = {};
-    // REST API stays loopback-only: it is the agent's private control channel.
     bindings["8212/tcp"] = [{ HostPort: "0" }];
   }
 
-  // 自訂鏡像優先(沿用已部署的其他帕魯鏡像);否則用內建 vanilla/modded 映像。
+  const launchArgs = [
+    `-port=${rec.gamePort}`,
+    ...(rec.queryPort ? [`-queryport=${rec.queryPort}`] : []),
+    ...buildLaunchArgs(rec.launchOptions),
+  ];
+
   const image = rec.dockerImage?.trim() || IMAGES[rec.flavor];
   const imageExists = await docker
     .getImage(image)
@@ -95,6 +116,7 @@ export async function createContainer(
     Image: image,
     Labels: { [INSTANCE_LABEL]: rec.id },
     ExposedPorts: ports,
+    Cmd: launchArgs,
     HostConfig: {
       PortBindings: bindings,
       Binds: [
@@ -109,6 +131,7 @@ export async function createContainer(
 
 export async function startInstance(rec: InstanceRecord, instanceDir: string): Promise<void> {
   writeConfig(instanceDir, rec.settings);
+  applyEngineIniDocker(rec, instanceDir);
   let container = await findContainer(rec);
   if (!container) {
     await createContainer(rec, instanceDir);
@@ -227,6 +250,31 @@ export async function listInContainer(
   dirPath: string,
 ): Promise<string> {
   return execInContainer(rec, ["ls", "-1", dirPath]).then((s) => s.trim());
+}
+
+/** Resolve the ephemeral host port Docker assigned for the REST API (8212/tcp). */
+export async function restHostPort(rec: InstanceRecord): Promise<number | null> {
+  const container = await findContainer(rec);
+  if (!container) return null;
+  const info = await container.inspect();
+  const binding = info.NetworkSettings.Ports["8212/tcp"];
+  return binding?.[0]?.HostPort ? Number(binding[0].HostPort) : null;
+}
+
+/** Pull latest image and recreate container. */
+export async function updateImage(rec: InstanceRecord, instanceDir: string): Promise<string> {
+  const image = rec.dockerImage?.trim() || IMAGES[rec.flavor];
+  const stream = await docker.pull(image);
+  await new Promise<void>((resolve, reject) => {
+    docker.modem.followProgress(stream, (err: Error | null) => (err ? reject(err) : resolve()));
+  });
+  const container = await findContainer(rec);
+  if (container) {
+    await container.stop({ t: 30 }).catch(() => {});
+    await container.remove({ force: true });
+  }
+  await startInstance(rec, instanceDir);
+  return image;
 }
 
 export const dockerDriver: ServerDriver = {
