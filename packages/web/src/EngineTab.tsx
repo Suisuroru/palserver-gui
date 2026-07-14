@@ -26,6 +26,13 @@ const KEYS = Object.keys(ENGINE_OPTIONS) as EngineOptionKey[];
 const effective = (values: EngineSettings, key: EngineOptionKey) =>
   values[key] ?? ENGINE_OPTIONS[key].default;
 
+/** bytes/s → Mbps 併列顯示(×8 ÷ 1,000,000),對照家用網路方案用。 */
+function formatMbps(bytesPerSec: number): string {
+  const mbps = (bytesPerSec * 8) / 1_000_000;
+  const text = mbps >= 100 ? mbps.toFixed(0) : mbps >= 10 ? mbps.toFixed(1) : mbps.toFixed(2);
+  return `${text} Mbps`;
+}
+
 export function EngineTab({
   client,
   instanceId,
@@ -298,13 +305,16 @@ function OptionRow({
           </button>
         ) : (
           <>
+            {meta.showMbps && (
+              <span className="font-mono text-xs whitespace-nowrap text-ink-muted">≈ {formatMbps(Number(value))}</span>
+            )}
             <input
               type="number"
               className={`${inputCls} w-28 text-right`}
               value={String(value)}
               min={meta.min}
               max={meta.max}
-              step={meta.type === "float" ? (meta.step ?? 0.1) : 1}
+              step={meta.step ?? (meta.type === "float" ? 0.1 : 1)}
               onChange={(e) => {
                 const n = Number(e.target.value);
                 if (!Number.isNaN(n)) onChange(meta.type === "int" ? Math.trunc(n) : n);
@@ -317,7 +327,7 @@ function OptionRow({
                 value={Number(value)}
                 min={meta.min}
                 max={meta.max}
-                step={meta.type === "float" ? (meta.step ?? 0.1) : 1}
+                step={meta.step ?? (meta.type === "float" ? 0.1 : 1)}
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   onChange(meta.type === "int" ? Math.trunc(n) : n);

@@ -26,6 +26,8 @@ export interface EngineOptionMeta {
   hint?: string;
   /** shown as a caution next to the field */
   warn?: string;
+  /** bytes/s 欄位:在輸入框旁併列顯示換算後的 Mbps,方便對照家用網路方案。 */
+  showMbps?: boolean;
 }
 
 const NET_DRIVER = "/Script/OnlineSubsystemUtils.IpNetDriver";
@@ -49,20 +51,25 @@ export const ENGINE_OPTIONS = {
     type: "int",
     default: 15000,
     min: 10000,
-    max: 200000,
+    max: 125000000,
+    step: 10000,
     category: "network",
     label: "每位玩家頻寬上限(bytes/s)",
-    hint: "提高可減少高 Tick 率下的封包裁切,代價是上行頻寬。",
+    hint: "提高可減少高 Tick 率下的封包裁切、加快玩家載入與切換地圖,代價是上行頻寬。",
+    warn: "總上行需求 ≈ 每人上限 × 在線人數;設定超過網路上行能力,反而會讓所有人一起卡。",
+    showMbps: true,
   },
   MaxInternetClientRate: {
     section: NET_DRIVER,
     type: "int",
     default: 10000,
     min: 10000,
-    max: 200000,
+    max: 125000000,
+    step: 10000,
     category: "network",
     label: "網際網路玩家頻寬上限(bytes/s)",
     hint: "同上,套用在非區網玩家。通常與上一項設為相同值。",
+    showMbps: true,
   },
   ConnectionTimeout: {
     section: NET_DRIVER,
