@@ -399,6 +399,23 @@ export function registerRoutes(
     if (portTaken) {
       return reply.code(409).send({ error: `game port ${input.gamePort} already in use` });
     }
+    // docker/native: REST API port 在 host 層暴露，需每實例唯一。k8s 由 namespace
+    // + ClusterIP 隔離，不需檢測。
+    if (input.backend !== "k8s" && input.settings?.RESTAPIEnabled !== false) {
+      const restTaken = store
+        .list()
+        .some(
+          (r) =>
+            r.backend !== "k8s" &&
+            r.settings.RESTAPIEnabled &&
+            r.settings.RESTAPIPort === (input.settings?.RESTAPIPort ?? 8212),
+        );
+      if (restTaken) {
+        return reply.code(409).send({
+          error: `REST API port ${input.settings?.RESTAPIPort ?? 8212} already in use`,
+        });
+      }
+    }
     let serverDir: string | undefined;
     let serverDirManaged: boolean | undefined;
     if (input.serverDir?.trim()) {
@@ -469,6 +486,11 @@ export function registerRoutes(
         // game-server 未運行或 INI 不存在 — 用 caller 帶入的 settings
       }
     }
+    // docker/native: 自動分配唯一的 REST API port（仿 queryPort 自動分配）。
+    // k8s 由 namespace + ClusterIP 隔離，不需要。
+    if (input.backend !== "k8s" && settings.RESTAPIEnabled) {
+      settings.RESTAPIPort = store.nextRestApiPort();
+    }
     const rec = store.create({
       name: input.name,
       backend: input.backend,
@@ -504,10 +526,31 @@ export function registerRoutes(
     };
   });
 
-  app.put("/api/instances/:id/settings", async (req) => {
+  app.put("/api/instances/:id/settings", async (req, reply) => {
     const rec = getOr404((req.params as { id: string }).id);
     const patch = UpdateSettingsSchema.parse(req.body);
     const nextSettings = WorldSettingsSchema.parse({ ...rec.settings, ...patch });
+    // docker/native: REST API port 在 host 層暴露，變更時需檢測衝突。
+    if (
+      rec.backend !== "k8s" &&
+      nextSettings.RESTAPIEnabled &&
+      nextSettings.RESTAPIPort !== rec.settings.RESTAPIPort
+    ) {
+      const restTaken = store
+        .list()
+        .some(
+          (r) =>
+            r.id !== rec.id &&
+            r.backend !== "k8s" &&
+            r.settings.RESTAPIEnabled &&
+            r.settings.RESTAPIPort === nextSettings.RESTAPIPort,
+        );
+      if (restTaken) {
+        return reply.code(409).send({
+          error: `REST API port ${nextSettings.RESTAPIPort} already in use`,
+        });
+      }
+    }
     await snapshotBefore(rec, "world settings update");
     // The driver re-renders the ini on every start; pre-render for docker so
     // the bind-mounted config is already in place.
@@ -516,10 +559,19 @@ export function registerRoutes(
       dockerOps.writeConfig(store.instanceDir(rec.id), updated.settings);
       return { applied: "on-next-restart", settings: updated.settings };
     }
-    // k8s: settings are applied as STS env on the next manual restart, not
-    // immediately — same as native/docker. The k8s start flow patches env then.
-    // All backends: store only, applied on next restart.
+    // k8s: settings are applied as STS env on the next manual restart.
+    // native: write ini immediately (same as docker) so the file is up-to-date
+    // even while the server is running.
     const updated = store.update(rec.id, { settings: nextSettings });
+    if (updated.backend === "native") {
+      const { renderPalWorldSettingsIni } = await import("./settings-ini.js");
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const { serverRoot } = await import("./native.js");
+      const configDir = path.join(serverRoot(updated, ctxOf(updated)), "Pal", "Saved", "Config", process.platform === "win32" ? "WindowsServer" : "LinuxServer");
+      fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(path.join(configDir, "PalWorldSettings.ini"), renderPalWorldSettingsIni(updated.settings));
+    }
     return { applied: "on-next-restart", settings: updated.settings };
   });
 
