@@ -20,7 +20,6 @@ import { VersionCard } from "./VersionCard";
 import { ConnectionCard } from "./ConnectionCard";
 import { MigrationCard } from "./MigrationCard";
 import { InstanceSettingsTab } from "./InstanceSettingsTab";
-import { CopyPath } from "./CopyPath";
 import { SHOW_SPONSOR_FEATURES } from "./flags";
 import { PerformanceTab } from "./PerformanceTab";
 import { EngineTab } from "./EngineTab";
@@ -379,7 +378,6 @@ function OverviewTab({
       .catch(() => setEnhancements(null));
   }, [client, detail.id]);
 
-  const serverPath = detail.effectiveServerDir ?? detail.serverDir;
   const rows: [string, React.ReactNode][] = [
     [t("狀態"), t(STATUS_LABELS[detail.status])],
     [t("運行方式"), detail.backend === "native" ? t("原生") : detail.backend === "docker" ? t("Docker 容器") : t("Kubernetes Pod")],
@@ -391,8 +389,7 @@ function OverviewTab({
     ["REST API", detail.settings.RESTAPIEnabled ? t("啟用({port})", { port: Number(detail.settings.RESTAPIPort) }) : t("停用")],
     ["RCON", detail.settings.RCONEnabled ? t("啟用({port})", { port: Number(detail.settings.RCONPort) }) : t("停用")],
     [detail.backend === "native" ? t("行程 PID") : detail.backend === "docker" ? t("容器 ID") : t("Pod 名稱"), detail.runtimeId ? detail.runtimeId.slice(0, 12) : "—"],
-    // 路徑可能很長:中間省略、可點擊複製完整路徑,別讓它把整張卡片撐爆。
-    [t("伺服器目錄"), serverPath ? <CopyPath value={serverPath} className="font-mono text-[13px]" /> : t("agent 管理")],
+    // 伺服器目錄刻意不放總覽(截圖/直播容易外洩本機路徑);要看去實例「設定」分頁,那裡有遮蔽。
     [t("建立時間"), new Date(detail.createdAt).toLocaleString()],
   ];
 

@@ -578,7 +578,7 @@ function CreateDialog({
             value={maxPlayers}
             onChange={(e) => setMaxPlayers(Number(e.target.value))}
             min={1}
-            max={32}
+            max={99}
           />
         </label>
         <label className={labelCls}>

@@ -45,7 +45,7 @@ export const WORLD_OPTIONS = {
   ServerDescription: { type: "string", default: "", maxLength: 256, category: "server" },
   ServerPassword: { type: "string", default: "", maxLength: 64, secret: true, category: "server" },
   AdminPassword: { type: "string", default: "", maxLength: 64, secret: true, category: "server" },
-  ServerPlayerMaxNum: { type: "int", default: 32, min: 1, max: 32, category: "server" },
+  ServerPlayerMaxNum: { type: "int", default: 32, min: 1, max: 99, category: "server" },
   CoopPlayerMaxNum: { type: "int", default: 4, min: 1, max: 8, category: "server" },
   PublicIP: { type: "string", default: "", maxLength: 64, category: "server" },
   PublicPort: { type: "int", default: 8211, min: 1024, max: 65535, category: "server" },

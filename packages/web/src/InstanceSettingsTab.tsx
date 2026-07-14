@@ -240,6 +240,7 @@ function ServerPathCard({
         {effectiveServerDir ? (
           <CopyPath
             value={effectiveServerDir}
+            secret
             className="w-full rounded-lg border-2 border-line bg-card-soft px-3 py-2 font-mono text-[13px]"
           />
         ) : (
