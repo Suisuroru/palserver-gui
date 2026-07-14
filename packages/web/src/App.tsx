@@ -224,8 +224,9 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
       <Mascot />
       <AnnouncementPopup />
       {error && <p className={errorCls}>{error}</p>}
-      {/* 與實例內頁的標題列(啟動/日誌那排)同一水平線:上方不留 margin */}
-      <div className="mb-3.5 flex items-center justify-between">
+      {/* 與實例內頁的標題列(啟動/日誌那排)同一水平線:上方不留 margin;
+          下方 mb-6 與 header 的 mb-6 對稱,列表到按鈕列、按鈕列到感謝名單距離相同 */}
+      <div className="mb-6 flex items-center justify-between">
         <h2 className="text-[17px] font-extrabold">{t("伺服器")}</h2>
         <div className="flex items-center gap-2">
           <button
