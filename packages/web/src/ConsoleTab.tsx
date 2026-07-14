@@ -409,6 +409,9 @@ export function ConsoleTab({
                   {selected.source === "builtin" ? t("內建") : "PalDefender"}
                 </span>
                 <p className="w-full text-[13px] text-ink-muted">{t(selected.label)}</p>
+                {selected.hint && (
+                  <p className="w-full text-xs text-ink-muted">{t(selected.hint)}</p>
+                )}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {selected.args.map((arg) => (

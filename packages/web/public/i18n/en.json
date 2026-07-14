@@ -1144,5 +1144,17 @@
  "在線玩家總數": "Total players online",
  "CPU 合計": "Total CPU",
  "記憶體合計": "Total memory",
- "最低 FPS": "Lowest FPS"
+ "最低 FPS": "Lowest FPS",
+ "官方註記:會增加磁碟負載。存檔碟是慢速硬碟時建議關閉;官方警告慢速儲存可能損毀存檔,建議使用 SSD。": "Official note: increases disk load. Consider disabling on slow HDDs; the devs warn slow storage may corrupt saves — an SSD is recommended.",
+ "高負載伺服器社群建議 300–600 秒可減少存檔卡頓;代價是異常關機時回檔的損失變大。": "For heavily loaded servers the community suggests 300–600 s to reduce autosave stutter; the trade-off is losing more progress on an unexpected shutdown.",
+ "每影格處理的公會數:越高公會更新越即時,CPU 成本也越高。": "Guilds processed per frame: higher keeps guilds more up to date at a higher CPU cost.",
+ "官方註記:調高會提高伺服器處理負載;高負載伺服器社群建議降到 10。": "Official note: raising this increases server load; for heavily loaded servers the community suggests lowering it to 10.",
+ "掉落物是重載伺服器的主要負擔之一;高負載伺服器社群建議 2000–2500。": "Dropped items are one of the main loads on busy servers; the community suggests 2000–2500 for heavily loaded servers.",
+ "掉落物存活時數;高負載伺服器社群建議 0.5–1 小時,加快世界清理。": "Hours dropped items persist; the community suggests 0.5–1 h on heavily loaded servers to clean up the world faster.",
+ "啟用物理計算的掉落物上限(-1 = 無上限);設上限可減少物理運算負擔。": "Cap on physics-enabled dropped items (-1 = unlimited); setting a cap reduces physics load.",
+ "怕魯/玩家的同步距離(公分):調低可減少同步負擔,但玩家會較晚看到遠處的生物。": "Replication distance for pals/players (cm): lower reduces sync load, but players see distant creatures later.",
+ "清理": "Cleanup",
+ "清空指定玩家背包(或指定容器)的物品,可減少世界殘留物件與存檔量。": "Clears the items in a player's inventory (or a specific container); reduces leftover world objects and save size.",
+ "依條件批次刪除玩家的帕魯(例如清理離線玩家的過量帕魯),減輕伺服器物件負擔。": "Batch-deletes a player's pals by filter (e.g. trimming offline players' excess pals) to lighten server object load.",
+ "刪除離指定座標最近的據點,可清除無主/廢棄據點;PalDefender 刪除前會自動輸出該據點的 JSON 備份。": "Deletes the base nearest to the given coordinates — useful for clearing abandoned bases; PalDefender writes a JSON backup of the base before deletion."
 }

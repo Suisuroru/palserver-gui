@@ -180,12 +180,14 @@ function OptionRow({
   onChange: (v: WorldOptionValue) => void;
 }) {
   useI18n();
-  const meta = WORLD_OPTIONS[optionKey];
+  // as OptionMeta:WORLD_OPTIONS 是 as const 的字面型別,沒寫 hint 的項在聯集裡缺該屬性。
+  const meta = WORLD_OPTIONS[optionKey] as OptionMeta;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3">
-      <div className="min-w-52">
+      <div className="min-w-52 max-w-xl">
         <p className="text-sm font-bold">{t(OPTION_LABELS[optionKey])}</p>
         <p className="text-xs text-ink-muted">{optionKey}</p>
+        {meta.hint && <p className="mt-1 text-xs text-ink-muted">{t(meta.hint)}</p>}
       </div>
       <div className="flex items-center gap-3">
         {meta.type === "bool" && (

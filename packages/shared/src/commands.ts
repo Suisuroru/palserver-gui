@@ -22,7 +22,8 @@ export type CommandCategory =
   | "pals"
   | "tech"
   | "bases"
-  | "world";
+  | "world"
+  | "cleanup";
 
 export interface CommandArg {
   name: string;
@@ -44,6 +45,8 @@ export interface CommandSpec {
   args: CommandArg[];
   /** Destructive or irreversible — the UI confirms before running. */
   dangerous?: boolean;
+  /** 選定指令時顯示的補充說明(zh-TW 原文,前端 t() 翻譯)。 */
+  hint?: string;
 }
 
 const userId = (label = "玩家 UserId"): CommandArg => ({
@@ -215,9 +218,10 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "clearinv",
     source: "paldefender",
-    category: "items",
+    category: "cleanup",
     label: "清空玩家背包",
     dangerous: true,
+    hint: "清空指定玩家背包(或指定容器)的物品,可減少世界殘留物件與存檔量。",
     args: [userId(), { name: "container", label: "容器(選填)", required: false }],
   },
   {
@@ -264,9 +268,10 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "deletepals",
     source: "paldefender",
-    category: "pals",
+    category: "cleanup",
     label: "依條件刪除帕魯",
     dangerous: true,
+    hint: "依條件批次刪除玩家的帕魯(例如清理離線玩家的過量帕魯),減輕伺服器物件負擔。",
     args: [userId(), { name: "filter", label: "篩選條件", required: true }],
   },
   {
@@ -309,9 +314,10 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "killnearestbase",
     source: "paldefender",
-    category: "bases",
+    category: "cleanup",
     label: "摧毀最近的據點",
     dangerous: true,
+    hint: "刪除離指定座標最近的據點,可清除無主/廢棄據點;PalDefender 刪除前會自動輸出該據點的 JSON 備份。",
     args: [{ name: "coords", label: "座標(選填)", required: false, coord: true, placeholder: "x y z" }],
   },
   {
@@ -333,6 +339,7 @@ export const COMMAND_CATEGORY_LABELS: Record<CommandCategory, string> = {
   tech: "科技",
   bases: "據點與公會",
   world: "世界",
+  cleanup: "清理",
 };
 
 /** Build the wire command string, quoting nothing — Palworld's parser is

@@ -22,13 +22,17 @@ export type OptionCategory =
   | "world";
 
 /** soft=true:min/max 只是「建議範圍」(滑桿範圍 + 超出時提醒),實際允許填更極端的值
- *  ——玩家就是想亂玩。非 soft(如埠號、人數上限)則嚴格限制。 */
+ *  ——玩家就是想亂玩。非 soft(如埠號、人數上限)則嚴格限制。
+ *  hint:顯示在設定項下方的說明/建議值文案(zh-TW 原文,前端 t() 翻譯),純 UI 用、不進 ini。 */
+interface OptionExtras {
+  hint?: string;
+}
 export type OptionMeta =
-  | { type: "float"; default: number; min: number; max: number; step: number; category: OptionCategory; soft?: boolean }
-  | { type: "int"; default: number; min: number; max: number; category: OptionCategory; soft?: boolean }
-  | { type: "bool"; default: boolean; category: OptionCategory }
-  | { type: "enum"; default: string; choices: readonly string[]; category: OptionCategory }
-  | { type: "string"; default: string; maxLength: number; secret?: boolean; category: OptionCategory };
+  | ({ type: "float"; default: number; min: number; max: number; step: number; category: OptionCategory; soft?: boolean } & OptionExtras)
+  | ({ type: "int"; default: number; min: number; max: number; category: OptionCategory; soft?: boolean } & OptionExtras)
+  | ({ type: "bool"; default: boolean; category: OptionCategory } & OptionExtras)
+  | ({ type: "enum"; default: string; choices: readonly string[]; category: OptionCategory } & OptionExtras)
+  | ({ type: "string"; default: string; maxLength: number; secret?: boolean; category: OptionCategory } & OptionExtras);
 
 // 倍率類:min/max 是建議範圍(滑桿),但允許超出(soft)—— 遊戲引擎不驗證 .ini,想亂玩就讓他玩。
 const rate = (
@@ -58,8 +62,8 @@ export const WORLD_OPTIONS = {
   RCONPort: { type: "int", default: 25575, min: 1024, max: 65535, category: "server" },
   ChatPostLimitPerMinute: { type: "int", default: 10, min: 1, max: 120, category: "server" },
   LogFormatType: { type: "enum", default: "Text", choices: ["Text", "Json"], category: "server" },
-  bIsUseBackupSaveData: { type: "bool", default: true, category: "server" },
-  AutoSaveSpan: { type: "float", default: 30, min: 10, max: 600, step: 5, category: "server" },
+  bIsUseBackupSaveData: { type: "bool", default: true, category: "server", hint: "官方註記:會增加磁碟負載。存檔碟是慢速硬碟時建議關閉;官方警告慢速儲存可能損毀存檔,建議使用 SSD。" },
+  AutoSaveSpan: { type: "float", default: 30, min: 10, max: 600, step: 5, category: "server", hint: "高負載伺服器社群建議 300–600 秒可減少存檔卡頓;代價是異常關機時回檔的損失變大。" },
   Region: { type: "string", default: "", maxLength: 64, category: "server" },
   CrossplayPlatforms: {
     type: "string", default: "(Steam,Xbox,PS5,Mac)", maxLength: 256, category: "server",
@@ -86,7 +90,7 @@ export const WORLD_OPTIONS = {
   ItemContainerForceMarkDirtyInterval: {
     type: "float", default: 1, min: 0, max: 60, step: 0.1, category: "server",
   },
-  MaxGuildsPerFrame: { type: "int", default: 10, min: 1, max: 100, category: "server" },
+  MaxGuildsPerFrame: { type: "int", default: 10, min: 1, max: 100, category: "server", hint: "每影格處理的公會數:越高公會更新越即時,CPU 成本也越高。" },
   PlayerDataPalStorageUpdateCheckTickInterval: {
     type: "float", default: 1, min: 0, max: 60, step: 0.1, category: "server",
   },
@@ -159,7 +163,7 @@ export const WORLD_OPTIONS = {
   GuildPlayerMaxNum: { type: "int", default: 20, min: 1, max: 100, category: "guild" },
   BaseCampMaxNum: { type: "int", default: 128, min: 1, max: 1024, category: "guild" },
   BaseCampMaxNumInGuild: { type: "int", default: 4, min: 1, max: 10, category: "guild" },
-  BaseCampWorkerMaxNum: { type: "int", default: 15, min: 1, max: 50, category: "guild" },
+  BaseCampWorkerMaxNum: { type: "int", default: 15, min: 1, max: 50, category: "guild", hint: "官方註記:調高會提高伺服器處理負載;高負載伺服器社群建議降到 10。" },
   bAutoResetGuildNoOnlinePlayers: { type: "bool", default: false, category: "guild" },
   AutoResetGuildTimeNoOnlinePlayers: {
     type: "float", default: 72, min: 1, max: 168, step: 1, category: "guild",
@@ -177,6 +181,7 @@ export const WORLD_OPTIONS = {
   MaxBuildingLimitNum: { type: "int", default: 0, min: 0, max: 10000, category: "build" },
   ServerReplicatePawnCullDistance: {
     type: "int", default: 15000, min: 5000, max: 15000, category: "build",
+    hint: "怕魯/玩家的同步距離(公分):調低可減少同步負擔,但玩家會較晚看到遠處的生物。",
   },
   BuildObjectHpRate: rate("build", 1, 0.1, 20),
   bEnableBuildingPlayerUIdDisplay: { type: "bool", default: false, category: "build" },
@@ -185,15 +190,15 @@ export const WORLD_OPTIONS = {
   },
 
   // ── drop ──────────────────────────────────────────────────────────────
-  DropItemMaxNum: { type: "int", default: 3000, min: 0, max: 5000, category: "drop" },
-  DropItemAliveMaxHours: { type: "float", default: 1, min: 0, max: 24, step: 0.5, category: "drop" },
+  DropItemMaxNum: { type: "int", default: 3000, min: 0, max: 5000, category: "drop", hint: "掉落物是重載伺服器的主要負擔之一;高負載伺服器社群建議 2000–2500。" },
+  DropItemAliveMaxHours: { type: "float", default: 1, min: 0, max: 24, step: 0.5, category: "drop", hint: "掉落物存活時數;高負載伺服器社群建議 0.5–1 小時,加快世界清理。" },
   CollectionDropRate: rate("drop", 1, 0.5, 20),
   EnemyDropItemRate: rate("drop", 1, 0.5, 20),
   ItemCorruptionMultiplier: rate("drop"),
   SupplyDropSpan: { type: "int", default: 180, min: 30, max: 1440, category: "drop" },
   DropItemMaxNum_UNKO: { type: "int", default: 100, min: 0, max: 5000, category: "drop" },
   bActiveUNKO: { type: "bool", default: false, category: "drop" },
-  PhysicsActiveDropItemMaxNum: { type: "int", default: -1, min: -1, max: 10000, category: "drop" },
+  PhysicsActiveDropItemMaxNum: { type: "int", default: -1, min: -1, max: 10000, category: "drop", hint: "啟用物理計算的掉落物上限(-1 = 無上限);設上限可減少物理運算負擔。" },
   DenyTechnologyList: { type: "string", default: "", maxLength: 512, category: "drop" },
 
   // ── world ─────────────────────────────────────────────────────────────
