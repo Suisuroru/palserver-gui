@@ -65,12 +65,31 @@ export const ADMIN_HTML = `<!doctype html>
   .chip{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; font-size:13px;
     background:var(--soft); border:1.5px solid var(--line); border-radius:10px; padding:7px 11px; cursor:pointer; }
   .chip:hover{ border-color:var(--accent); }
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin-bottom:14px; }
+  .stat{ background:var(--soft); border:1.5px solid var(--line); border-radius:12px; padding:10px 14px;
+    cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+  .stat:hover{ border-color:var(--accent); }
+  .stat.on{ border-color:var(--accent); background:var(--card); box-shadow:0 1px 6px rgba(16,185,129,.22); }
+  .stat .n{ font-size:20px; font-weight:800; line-height:1.1; }
+  .stat .l{ font-size:11.5px; color:var(--muted); font-weight:700; margin-top:3px; }
+  .stat.c-green .n{ color:var(--accent-d); } .stat.c-red .n{ color:var(--danger); }
+  .stat.c-amber .n{ color:#b45309; } .stat.c-info .n{ color:var(--info); }
+  .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .toolbar input{ max-width:240px; }
+  .seg .cnt{ font-weight:600; opacity:.6; margin-left:4px; font-size:11.5px; }
+  th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  th.sortable:hover{ color:var(--ink); }
+  .src{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:800; }
+  .src.bmc{ background:rgba(99,102,241,.14); color:var(--info); }
+  .src.campaign{ background:rgba(245,158,11,.16); color:#b45309; }
+  .src.manual{ background:var(--soft); color:var(--muted); }
+  td .mail{ font-size:12px; color:var(--muted); }
   table{ width:100%; border-collapse:collapse; font-size:13px; }
   th{ text-align:left; color:var(--muted); font-weight:700; font-size:11.5px; text-transform:uppercase;
     letter-spacing:.4px; padding:8px 10px; border-bottom:1.5px solid var(--line); }
   td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
-  td.code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; }
-  .tag{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:800; }
+  td.code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; white-space:nowrap; }
+  .tag{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:800; white-space:nowrap; }
   .tag.on{ background:rgba(16,185,129,.15); color:var(--accent-d); }
   .tag.off{ background:var(--soft); color:var(--muted); }
   .tag.exp{ background:rgba(239,68,68,.14); color:var(--danger); }
@@ -161,21 +180,28 @@ export const ADMIN_HTML = `<!doctype html>
     <!-- 管理 -->
     <div class="card">
       <h2>📋 已發識別碼</h2>
-      <div class="row" style="margin-bottom:14px">
-        <input id="filter" type="text" placeholder="用活動標籤過濾…" style="max-width:260px" onkeydown="if(event.key==='Enter')refresh()" />
-        <button class="btn ghost sm" onclick="refresh()">重新整理</button>
+      <p class="hint">點統計卡依狀態分類;來源、搜尋可再疊加過濾。</p>
+      <div class="stats" id="stats"></div>
+      <div class="toolbar">
+        <input id="q" type="text" placeholder="搜尋識別碼 / 標籤 / Email…" oninput="applyView()" />
+        <div class="seg" id="srcSeg"></div>
         <div class="spacer"></div>
-        <span id="listMeta" class="muted"></span>
+        <button class="btn ghost sm" onclick="exportView()">匯出檢視 CSV</button>
+        <button class="btn ghost sm" onclick="refresh()">重新整理</button>
       </div>
       <div class="tablewrap">
         <table>
           <thead><tr>
-            <th>識別碼</th><th>標籤</th><th>效期</th><th>狀態</th><th>來源</th><th></th>
+            <th>識別碼</th><th>對象 / 標籤</th>
+            <th class="sortable" onclick="setSort('created')">建立 <span id="arrowCreated"></span></th>
+            <th class="sortable" onclick="setSort('expiry')">效期 <span id="arrowExpiry"></span></th>
+            <th>狀態</th><th>來源</th><th></th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
       <div id="listEmpty" class="empty hide">目前沒有符合的識別碼。</div>
+      <div class="row" style="margin-top:10px"><span id="listMeta" class="muted"></span></div>
     </div>
   </div>
 </div>
@@ -188,6 +214,33 @@ export const ADMIN_HTML = `<!doctype html>
   ];
   var mode = "trial";
   var lastCodes = [];
+
+  // ── 清單狀態(全部抓回來,分類/搜尋/排序都在前端做)──
+  var ALL = [];            // 上次 refresh 抓回的完整清單
+  var stFilter = "all";    // all | active | unused | expiring | expired
+  var srcFilter = "all";   // all | bmc | campaign | manual
+  var sortKey = "created"; // created | expiry
+  var sortAsc = false;
+
+  var ST_OPTS = [
+    ["all","總數",""],["active","已啟用","c-green"],["unused","未使用",""],
+    ["expiring","30 天內到期","c-amber"],["expired","已過期","c-red"]
+  ];
+  var SRC_OPTS = [["all","全部來源"],["bmc","BMC 贊助"],["campaign","活動"],["manual","手動"]];
+
+  function statusOf(l){
+    if(l.expiresAt && new Date(l.expiresAt).getTime() < Date.now()) return "expired";
+    return l.bound ? "active" : "unused";
+  }
+  function daysLeft(l){
+    return l.expiresAt ? Math.ceil((new Date(l.expiresAt).getTime() - Date.now())/86400000) : null;
+  }
+  function isExpiring(l){ var d = daysLeft(l); return d !== null && d > 0 && d <= 30; }
+  function matchSt(l, st){
+    if(st === "all") return true;
+    if(st === "expiring") return statusOf(l) !== "expired" && isExpiring(l);
+    return statusOf(l) === st;
+  }
 
   function tok(){ return sessionStorage.getItem("palAdminTok") || ""; }
   function toast(msg, err){
@@ -303,7 +356,7 @@ export const ADMIN_HTML = `<!doctype html>
     if(l.expiresAt){
       var d = l.expiresAt.slice(0,10);
       if(l.activatedAt){
-        var left = Math.ceil((new Date(l.expiresAt) - new Date())/86400000);
+        var left = daysLeft(l);
         return d + (left>0 ? "(剩 "+left+" 天)" : "");
       }
       return "至 " + d;
@@ -311,34 +364,117 @@ export const ADMIN_HTML = `<!doctype html>
     return "永久";
   }
   function statusTag(l){
-    var now = new Date();
-    if(l.expiresAt && new Date(l.expiresAt) < now) return '<span class="tag exp">已過期</span>';
-    if(l.bound) return '<span class="tag on">已啟用</span>';
-    return '<span class="tag off">未使用</span>';
+    var st = statusOf(l);
+    if(st==="expired") return '<span class="tag exp">已過期</span>';
+    var extra = isExpiring(l) ? ' <span class="tag warn">快到期</span>' : '';
+    if(st==="active") return '<span class="tag on">已啟用</span>' + extra;
+    return '<span class="tag off">未使用</span>' + extra;
+  }
+  function targetCell(l){
+    if(l.email) return '<span class="mail">'+esc(l.email)+'</span>';
+    return l.sponsor ? esc(l.sponsor) : '<span class="muted">—</span>';
+  }
+
+  function renderStats(){
+    var el = document.getElementById("stats"); el.innerHTML = "";
+    ST_OPTS.forEach(function(o){
+      var n = 0;
+      ALL.forEach(function(l){ if(matchSt(l, o[0])) n++; });
+      var d = document.createElement("div");
+      d.className = "stat " + o[2] + (stFilter===o[0] ? " on" : "");
+      d.innerHTML = '<div class="n">'+n+'</div><div class="l">'+o[1]+'</div>';
+      d.onclick = function(){ stFilter = o[0]; renderStats(); applyView(); };
+      el.appendChild(d);
+    });
+  }
+  function renderSrcSeg(){
+    var el = document.getElementById("srcSeg"); el.innerHTML = "";
+    SRC_OPTS.forEach(function(o){
+      var n = 0;
+      ALL.forEach(function(l){ if(o[0]==="all" || (l.source||"manual")===o[0]) n++; });
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = srcFilter===o[0] ? "on" : "";
+      b.innerHTML = esc(o[1]) + '<span class="cnt">'+n+'</span>';
+      b.onclick = function(){ srcFilter = o[0]; renderSrcSeg(); applyView(); };
+      el.appendChild(b);
+    });
+  }
+
+  function setSort(k){
+    if(sortKey === k) sortAsc = !sortAsc;
+    else { sortKey = k; sortAsc = (k === "expiry"); } // 效期預設由近到遠,建立預設新到舊
+    applyView();
+  }
+  function expiryVal(l){
+    // 排序用:無到期(永久/試用未啟用)排最後
+    return l.expiresAt ? new Date(l.expiresAt).getTime() : Infinity;
+  }
+  function currentView(){
+    var q = document.getElementById("q").value.trim().toLowerCase();
+    var out = ALL.filter(function(l){
+      if(!matchSt(l, stFilter)) return false;
+      if(srcFilter !== "all" && (l.source||"manual") !== srcFilter) return false;
+      if(q){
+        var hay = (l.code+" "+(l.sponsor||"")+" "+(l.email||"")).toLowerCase();
+        if(hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+    out.sort(function(a,b){
+      var va = sortKey==="expiry" ? expiryVal(a) : new Date(a.createdAt).getTime();
+      var vb = sortKey==="expiry" ? expiryVal(b) : new Date(b.createdAt).getTime();
+      return sortAsc ? va - vb : vb - va;
+    });
+    return out;
+  }
+
+  function applyView(){
+    var list = currentView();
+    document.getElementById("arrowCreated").textContent = sortKey==="created" ? (sortAsc?"▲":"▼") : "";
+    document.getElementById("arrowExpiry").textContent  = sortKey==="expiry"  ? (sortAsc?"▲":"▼") : "";
+    var rows = document.getElementById("rows"); rows.innerHTML = "";
+    list.forEach(function(l){
+      var src = l.source || "manual";
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="code">'+esc(l.code)+'</td>' +
+        '<td>'+targetCell(l)+'</td>' +
+        '<td class="muted">'+esc((l.createdAt||"").slice(0,10))+'</td>' +
+        '<td>'+esc(expiryText(l))+'</td>' +
+        '<td>'+statusTag(l)+'</td>' +
+        '<td><span class="src '+esc(src)+'">'+esc(src)+'</span></td>' +
+        '<td><div class="acts">' +
+          '<button class="btn ghost sm" onclick="copy(\\''+l.code+'\\')">複製</button>' +
+          (l.bound?'<button class="btn ghost sm" onclick="doReset(\\''+l.code+'\\')">解綁</button>':'') +
+          '<button class="btn danger sm" onclick="doRevoke(\\''+l.code+'\\')">撤銷</button>' +
+        '</div></td>';
+      rows.appendChild(tr);
+    });
+    document.getElementById("listMeta").textContent = "顯示 " + list.length + " / 共 " + ALL.length + " 張";
+    document.getElementById("listEmpty").classList.toggle("hide", list.length>0);
+  }
+
+  function exportView(){
+    var list = currentView();
+    if(!list.length){ toast("目前檢視沒有資料", true); return; }
+    var lines = ["code,target,created,expires,status,source"];
+    list.forEach(function(l){
+      var target = l.email || l.sponsor || "";
+      lines.push([l.code, '"'+target.replace(/"/g,'""')+'"', (l.createdAt||"").slice(0,10),
+        l.expiresAt ? l.expiresAt.slice(0,10) : "permanent", statusOf(l), l.source||"manual"].join(","));
+    });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines.join("\\n")+"\\n"], {type:"text/csv"}));
+    a.download = "palserver-licenses.csv"; a.click();
+    toast("已匯出 " + list.length + " 筆");
   }
 
   async function refresh(){
     try{
-      var r = await api("/api/license/list", { filter: document.getElementById("filter").value.trim(), limit: 1000 });
-      var rows = document.getElementById("rows"); rows.innerHTML = "";
-      (r.licenses||[]).forEach(function(l){
-        var tr = document.createElement("tr");
-        tr.innerHTML =
-          '<td class="code">'+esc(l.code)+'</td>' +
-          '<td>'+(l.sponsor?esc(l.sponsor):'<span class="muted">—</span>')+'</td>' +
-          '<td>'+esc(expiryText(l))+'</td>' +
-          '<td>'+statusTag(l)+'</td>' +
-          '<td><span class="muted">'+esc(l.source||"manual")+'</span></td>' +
-          '<td><div class="acts">' +
-            '<button class="btn ghost sm" onclick="copy(\\''+l.code+'\\')">複製</button>' +
-            (l.bound?'<button class="btn ghost sm" onclick="doReset(\\''+l.code+'\\')">解綁</button>':'') +
-            '<button class="btn danger sm" onclick="doRevoke(\\''+l.code+'\\')">撤銷</button>' +
-          '</div></td>';
-        rows.appendChild(tr);
-      });
-      var n = (r.licenses||[]).length;
-      document.getElementById("listMeta").textContent = "共 " + n + " 張";
-      document.getElementById("listEmpty").classList.toggle("hide", n>0);
+      var r = await api("/api/license/list", { limit: 2000 });
+      ALL = r.licenses || [];
+      renderStats(); renderSrcSeg(); applyView();
     }catch(e){ if(e.message!=="unauthorized") toast("讀取失敗:"+e.message, true); }
   }
 
