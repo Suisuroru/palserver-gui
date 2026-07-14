@@ -15,6 +15,39 @@ const REASON_LABELS: Record<string, string> = {
   "startup-failure": "啟動失敗",
 };
 
+/** agent 寫進重啟紀錄的 detail 是中文原文(含動態數值)。這裡比對已知模板、
+ *  抽出動態值後用 t() 套譯文;比對不到(舊版格式等)原樣顯示 —— 與 i18n
+ *  「查不到 key 就顯示中文原文」的 fallback 行為一致。模板來源:agent/src/supervisor.ts。 */
+const DETAIL_PATTERNS: { re: RegExp; key: string; params: string[] }[] = [
+  { re: /^已達排定的重啟時間$/, key: "已達排定的重啟時間", params: [] },
+  { re: /^記憶體 (\S+) MB 持續超過 (\S+) MB$/, key: "記憶體 {mem} MB 持續超過 {limit} MB", params: ["mem", "limit"] },
+  { re: /^一小時內已重啟 (\d+) 次,達到上限後停止自動重啟$/, key: "一小時內已重啟 {n} 次,達到上限後停止自動重啟", params: ["n"] },
+  { re: /^伺服器異常結束,已自動重啟\(本小時第 (\d+) 次\)$/, key: "伺服器異常結束,已自動重啟(本小時第 {n} 次)", params: ["n"] },
+  { re: /^自動重啟失敗:([\s\S]*)$/, key: "自動重啟失敗:{err}", params: ["err"] },
+  { re: /^重啟失敗:([\s\S]*)$/, key: "重啟失敗:{err}", params: ["err"] },
+];
+
+const STARTUP_FAILURE_TEXT =
+  "伺服器在啟動階段即結束,且 PalDefender 已開啟「啟動失敗時關閉伺服器」— 研判為 PalDefender 啟動失敗自我關閉,已停止自動重啟以免無限重啟迴圈。請查看 PalDefender 日誌修正原因,或關閉該選項與崩潰自動重啟其一。";
+
+function localizeDetail(detail: string): string {
+  if (detail.startsWith(STARTUP_FAILURE_TEXT)) {
+    const hint = detail.slice(STARTUP_FAILURE_TEXT.length).match(/^ 最後日誌:([\s\S]*)$/);
+    return t(STARTUP_FAILURE_TEXT) + (hint ? ` ${t("最後日誌:{hint}", { hint: hint[1] })}` : "");
+  }
+  for (const p of DETAIL_PATTERNS) {
+    const m = detail.match(p.re);
+    if (m) {
+      const args: Record<string, string> = {};
+      p.params.forEach((name, i) => {
+        args[name] = m[i + 1];
+      });
+      return t(p.key, args);
+    }
+  }
+  return detail;
+}
+
 /** Automatic-restart policy: scheduled, memory threshold, crash recovery. */
 export function RestartCard({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   useI18n();
@@ -241,7 +274,7 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
                 )}
                 <div className="flex-1">
                   <p className="text-[13px] font-bold">
-                    {t(REASON_LABELS[e.reason] ?? e.reason)} · {e.detail}
+                    {t(REASON_LABELS[e.reason] ?? e.reason)} · {localizeDetail(e.detail)}
                   </p>
                   <p className="text-xs text-ink-muted">{fmtWhen(e.at)}</p>
                 </div>
