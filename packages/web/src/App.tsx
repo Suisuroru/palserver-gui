@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GiSheep, GiEggClutch } from "react-icons/gi";
-import { FiActivity, FiAlertTriangle, FiCpu, FiDownload, FiHardDrive, FiHeart, FiHelpCircle, FiPlus, FiSettings, FiStar, FiUsers, FiZap } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiClock, FiCpu, FiDownload, FiHardDrive, FiHeart, FiHelpCircle, FiHome, FiPlus, FiServer, FiSettings, FiStar, FiSun, FiUsers, FiZap } from "react-icons/fi";
 import { hasFeature } from "@palserver/shared";
 import type { Backend, ExternalWorldCandidate, InstanceStats, InstanceSummary, LiveStatus } from "@palserver/shared";
 import {
@@ -33,7 +33,7 @@ import { ImportSaveModal } from "./ImportSaveModal";
 import { OPEN_SETTINGS_EVENT, SiteFooter } from "./SiteFooter";
 import { ThemeToggle } from "./theme";
 import { LangSelect, useI18n, t as translate } from "./i18n";
-import { fmtBytes, knownCpuSample } from "./PerformanceTab";
+import { fmtBytes, fmtDuration, knownCpuSample } from "./PerformanceTab";
 import { InstallProgress, Overlay, Select, StatusBadge, btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
 
 export default function App() {
@@ -324,6 +324,9 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
           </button>
         </div>
       </div>
+      {advanced && entitled && instances && instances.length > 0 && (
+        <DashboardOverview instances={instances} extras={extras} />
+      )}
       {instances === null ? (
         <div className="rounded-(--radius-cute) border-2 border-dashed border-line px-6 py-12 text-center text-ink-muted">
           <GiEggClutch className="mx-auto mb-2 size-11 animate-bounce" />
@@ -380,6 +383,51 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
   );
 }
 
+/** 進階顯示的總覽板塊:所有運作中伺服器的加總(玩家/CPU/記憶體/最低 FPS)。 */
+function DashboardOverview({
+  instances,
+  extras,
+}: {
+  instances: InstanceSummary[];
+  extras: Record<string, CardExtra>;
+}) {
+  useI18n();
+  const running = instances.filter((i) => i.status === "running");
+  const lives = running
+    .map((i) => extras[i.id]?.live)
+    .filter((l): l is NonNullable<typeof l> => !!l?.available);
+  const statsList = running
+    .map((i) => extras[i.id]?.stats)
+    .filter((s): s is NonNullable<typeof s> => s != null);
+  const players = lives.reduce((sum, l) => sum + l.players.length, 0);
+  const maxPlayers = lives.reduce((sum, l) => sum + (l.metrics?.maxplayernum ?? 0), 0);
+  const cpuKnown = statsList.filter((s) => knownCpuSample(s.cpuPercent));
+  const cpu = cpuKnown.reduce((sum, s) => sum + (s.cpuPercent as number), 0);
+  const mem = statsList.reduce((sum, s) => sum + s.memoryBytes, 0);
+  const fpsList = lives.map((l) => l.metrics?.serverfps).filter((n): n is number => n != null);
+  const minFps = fpsList.length ? Math.min(...fpsList) : null;
+
+  const tiles: { icon: React.ReactNode; label: string; value: string }[] = [
+    { icon: <FiServer className="size-4" />, label: translate("運作中伺服器"), value: `${running.length} / ${instances.length}` },
+    { icon: <FiUsers className="size-4" />, label: translate("在線玩家總數"), value: lives.length ? `${players}${maxPlayers ? ` / ${maxPlayers}` : ""}` : "—" },
+    { icon: <FiCpu className="size-4" />, label: translate("CPU 合計"), value: cpuKnown.length ? `${cpu.toFixed(0)}%` : "—" },
+    { icon: <FiHardDrive className="size-4" />, label: translate("記憶體合計"), value: statsList.length ? fmtBytes(mem) : "—" },
+    { icon: <FiZap className="size-4" />, label: translate("最低 FPS"), value: minFps != null ? String(minFps) : "—" },
+  ];
+  return (
+    <div className={`${card} mb-3.5 grid grid-cols-2 gap-3 sm:grid-cols-5`}>
+      {tiles.map((tl) => (
+        <div key={tl.label} className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
+            <span className="text-pal">{tl.icon}</span> {tl.label}
+          </span>
+          <span className="text-lg font-extrabold">{tl.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** 單張可拖曳排序的伺服器卡片(@dnd-kit)。整張卡是拖曳把手,單純點擊仍會開啟。
  * extra:進階顯示(贊助者)開啟且運作中才有 —— undefined=不顯示,null=載入中。 */
 function SortableServerCard({
@@ -416,25 +464,52 @@ function SortableServerCard({
         {inst.gameVersion && ` · ${inst.gameVersion}`}
       </p>
       {extra !== undefined && (
-        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-card-soft px-3 py-2 text-xs font-bold text-ink-muted">
-          <span className="inline-flex items-center gap-1.5" title={translate("在線玩家")}>
-            <FiUsers className="size-3.5 shrink-0 text-pal" />
-            {extra?.live?.available
-              ? `${extra.live.players.length}${extra.live.metrics ? ` / ${extra.live.metrics.maxplayernum}` : ""}`
-              : "—"}
-          </span>
-          <span className="inline-flex items-center gap-1.5" title={translate("伺服器 FPS")}>
-            <FiZap className="size-3.5 shrink-0 text-pal" />
-            {extra?.live?.metrics ? `${extra.live.metrics.serverfps} FPS` : "—"}
-          </span>
-          <span className="inline-flex items-center gap-1.5" title="CPU">
-            <FiCpu className="size-3.5 shrink-0 text-pal" />
-            {extra?.stats && knownCpuSample(extra.stats.cpuPercent) ? `${extra.stats.cpuPercent.toFixed(0)}%` : "—"}
-          </span>
-          <span className="inline-flex items-center gap-1.5" title={translate("記憶體")}>
-            <FiHardDrive className="size-3.5 shrink-0 text-pal" />
-            {extra?.stats ? fmtBytes(extra.stats.memoryBytes) : "—"}
-          </span>
+        <div className="mt-2 flex flex-col gap-1.5 rounded-xl bg-card-soft px-3 py-2">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs font-bold text-ink-muted">
+            <span className="inline-flex items-center gap-1.5" title={translate("在線玩家")}>
+              <FiUsers className="size-3.5 shrink-0 text-pal" />
+              {extra?.live?.available
+                ? `${extra.live.players.length}${extra.live.metrics ? ` / ${extra.live.metrics.maxplayernum}` : ""}`
+                : "—"}
+            </span>
+            <span className="inline-flex items-center gap-1.5" title={translate("伺服器 FPS")}>
+              <FiZap className="size-3.5 shrink-0 text-pal" />
+              {extra?.live?.metrics ? `${extra.live.metrics.serverfps} FPS` : "—"}
+            </span>
+            <span className="inline-flex items-center gap-1.5" title="CPU">
+              <FiCpu className="size-3.5 shrink-0 text-pal" />
+              {extra?.stats && knownCpuSample(extra.stats.cpuPercent) ? `${extra.stats.cpuPercent.toFixed(0)}%` : "—"}
+            </span>
+            <span className="inline-flex items-center gap-1.5" title={translate("記憶體")}>
+              <FiHardDrive className="size-3.5 shrink-0 text-pal" />
+              {extra?.stats ? fmtBytes(extra.stats.memoryBytes) : "—"}
+            </span>
+            <span className="inline-flex items-center gap-1.5" title={translate("運行時間")}>
+              <FiClock className="size-3.5 shrink-0 text-pal" />
+              {extra?.stats?.uptimeSeconds != null
+                ? fmtDuration(extra.stats.uptimeSeconds)
+                : extra?.live?.metrics
+                  ? fmtDuration(extra.live.metrics.uptime)
+                  : "—"}
+            </span>
+            <span className="inline-flex items-center gap-1.5" title={`${translate("遊戲天數")} · ${translate("據點數")}`}>
+              <FiSun className="size-3.5 shrink-0 text-pal" />
+              {extra?.live?.metrics
+                ? `${translate("第 {n} 天", { n: extra.live.metrics.days })} · ${extra.live.metrics.basecampnum} ${translate("據點")}`
+                : "—"}
+            </span>
+          </div>
+          {/* 在線玩家名單預覽:最多 4 位,其餘 +N */}
+          {extra?.live?.available && extra.live.players.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 border-t border-line/60 pt-1.5 text-[11px] font-bold text-ink-muted">
+              {extra.live.players.slice(0, 4).map((p) => (
+                <span key={p.playerId} className="rounded-full bg-card px-2 py-0.5">
+                  {p.name || "—"}
+                </span>
+              ))}
+              {extra.live.players.length > 4 && <span>+{extra.live.players.length - 4}</span>}
+            </div>
+          )}
         </div>
       )}
       {inst.updateAvailable && (

@@ -1138,5 +1138,11 @@
  "礦物": "Ores",
  "跳到地圖位置": "Jump to map location",
  "進階顯示": "Advanced view",
- "在首頁卡片直接顯示在線玩家數與資源用量": "Show online players and resource usage right on the dashboard cards"
+ "在首頁卡片直接顯示在線玩家數與資源用量": "Show online players and resource usage right on the dashboard cards",
+ "據點數": "Base camps",
+ "運作中伺服器": "Servers running",
+ "在線玩家總數": "Total players online",
+ "CPU 合計": "Total CPU",
+ "記憶體合計": "Total memory",
+ "最低 FPS": "Lowest FPS"
 }

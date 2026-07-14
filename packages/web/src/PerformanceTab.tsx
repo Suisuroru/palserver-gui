@@ -324,7 +324,7 @@ function clampRatio(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.min(value, 1)) : 0;
 }
 
-function fmtDuration(sec: number): string {
+export function fmtDuration(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
