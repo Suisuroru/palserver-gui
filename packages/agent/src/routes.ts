@@ -395,18 +395,16 @@ export function registerRoutes(
     if (store.findByName(input.name)) {
       return reply.code(409).send({ error: `instance "${input.name}" already exists` });
     }
-    const portTaken = input.backend !== "k8s" && store.list().some((r) => r.gamePort === input.gamePort);
-    if (portTaken) {
+    // 所有 backend 統一 port 衝突檢測：外部連線需 1:1 映射正確，每實例 port 唯一。
+    const gameTaken = store.list().some((r) => r.gamePort === input.gamePort);
+    if (gameTaken) {
       return reply.code(409).send({ error: `game port ${input.gamePort} already in use` });
     }
-    // docker/native: REST API port 在 host 層暴露，需每實例唯一。k8s 由 namespace
-    // + ClusterIP 隔離，不需檢測。
-    if (input.backend !== "k8s" && input.settings?.RESTAPIEnabled !== false) {
+    if (input.settings?.RESTAPIEnabled !== false) {
       const restTaken = store
         .list()
         .some(
           (r) =>
-            r.backend !== "k8s" &&
             r.settings.RESTAPIEnabled &&
             r.settings.RESTAPIPort === (input.settings?.RESTAPIPort ?? 8212),
         );
@@ -486,9 +484,8 @@ export function registerRoutes(
         // game-server 未運行或 INI 不存在 — 用 caller 帶入的 settings
       }
     }
-    // docker/native: 自動分配唯一的 REST API port（仿 queryPort 自動分配）。
-    // k8s 由 namespace + ClusterIP 隔離，不需要。
-    if (input.backend !== "k8s" && settings.RESTAPIEnabled) {
+    // 自動分配唯一的 REST API port（仿 queryPort 自動分配）。
+    if (settings.RESTAPIEnabled) {
       settings.RESTAPIPort = store.nextRestApiPort();
     }
     const rec = store.create({
@@ -530,25 +527,42 @@ export function registerRoutes(
     const rec = getOr404((req.params as { id: string }).id);
     const patch = UpdateSettingsSchema.parse(req.body);
     const nextSettings = WorldSettingsSchema.parse({ ...rec.settings, ...patch });
-    // docker/native: REST API port 在 host 層暴露，變更時需檢測衝突。
-    if (
-      rec.backend !== "k8s" &&
-      nextSettings.RESTAPIEnabled &&
-      nextSettings.RESTAPIPort !== rec.settings.RESTAPIPort
-    ) {
-      const restTaken = store
-        .list()
-        .some(
-          (r) =>
-            r.id !== rec.id &&
-            r.backend !== "k8s" &&
-            r.settings.RESTAPIEnabled &&
-            r.settings.RESTAPIPort === nextSettings.RESTAPIPort,
-        );
+    // 所有 backend 統一 port 衝突檢測：外部連線需 1:1 映射正確。
+    if (nextSettings.RESTAPIEnabled && nextSettings.RESTAPIPort !== rec.settings.RESTAPIPort) {
+      const restTaken = store.list().some(
+        (r) =>
+          r.id !== rec.id &&
+          r.settings.RESTAPIEnabled &&
+          r.settings.RESTAPIPort === nextSettings.RESTAPIPort,
+      );
       if (restTaken) {
         return reply.code(409).send({
           error: `REST API port ${nextSettings.RESTAPIPort} already in use`,
         });
+      }
+    }
+    // game port (PublicPort) 衝突檢測。
+    if (nextSettings.PublicPort !== rec.settings.PublicPort) {
+      const portTaken = store.list().some(
+        (r) => r.id !== rec.id && r.gamePort === nextSettings.PublicPort,
+      );
+      if (portTaken) {
+        return reply.code(409).send({ error: `game port ${nextSettings.PublicPort} already in use` });
+      }
+    }
+    // RCON port 衝突檢測（僅 RCONEnabled 時）。
+    if (
+      nextSettings.RCONEnabled &&
+      nextSettings.RCONPort !== rec.settings.RCONPort
+    ) {
+      const rconTaken = store.list().some(
+        (r) =>
+          r.id !== rec.id &&
+          r.settings.RCONEnabled &&
+          r.settings.RCONPort === nextSettings.RCONPort,
+      );
+      if (rconTaken) {
+        return reply.code(409).send({ error: `RCON port ${nextSettings.RCONPort} already in use` });
       }
     }
     await snapshotBefore(rec, "world settings update");
@@ -746,7 +760,12 @@ export function registerRoutes(
     let gamePort = rec.gamePort + 1;
     while (usedPorts.has(gamePort)) gamePort++;
 
-    const settings = WorldSettingsSchema.parse({ ...rec.settings, ServerName: name, PublicPort: gamePort });
+    const settings = WorldSettingsSchema.parse({
+      ...rec.settings,
+      ServerName: name,
+      PublicPort: gamePort,
+      ...(rec.settings.RESTAPIEnabled ? { RESTAPIPort: store.nextRestApiPort() } : {}),
+    });
     // 新實例沿用來源的 backend（native 走 host FS，docker 走 bind-mount）。
     const created = store.create({
       name,
