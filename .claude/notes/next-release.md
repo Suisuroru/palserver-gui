@@ -6,6 +6,12 @@ v2.2.6 已發布(2026-07-15:彙整 2.2.4–2.2.6 更新失敗修復包,notes 涵
 發版流程:bump 四個 package.json → 四語 RELEASE_NOTES → chore(release) commit → tag → push --tags。
 
 ## Features(自 v2.2.6 起)
+- **排行榜分頁**(贊助 feature `leaderboard`):等級/財富/圖鑑收集/最強帕魯/公會五榜+
+  「與上次掃描相比」變化報告;資料來自健檢掃描統計歷史(save-stats-history.json,每世界 60 筆)。
+- **圖鑑收集完成度**(玩家詳情,沿用 save-slim 鎖):玩家 .sav RecordData 的
+  PaldeckUnlockFlag ∪ PalCaptureCount,完成度進度條。
+  **待實機驗證**:Windows 真實存檔掃一次,確認圖鑑數/榜單數字合理(mac 無法掃)。
+- 自動重啟遊戲內倒數公告 i18n(儲存重啟設定時以介面語言存模板)。
 - PR #32(BlackWhiteTW):遺物指令 RelicType 參數、自訂帕魯濃縮計算、UE4SS 測試版下載、等級上限、地圖 Z 軸與多國語系修正。
 - PR #29(teps3105,closes #26):REST 埠 1:1 映射(docker 不再用 ephemeral port)、
   建立/複製實例自動分配 REST 埠、世界設定 PUT 補 REST/RCON 撞埠檢查、
