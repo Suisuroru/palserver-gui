@@ -69,7 +69,7 @@ const RAID_RADIUS = 70;
 interface Landmark {
   type: string;
   /** Name per interface language (from paldb's per-locale map data). */
-  name: { en: string; zh: string; ja: string; zhCN?: string };
+  name: { en: string; zh: string; "zh-CN"?: string; zhCN?: string; ja: string };
   x: number;
   y: number;
   lv?: number;
@@ -84,7 +84,7 @@ const LANDMARK_STYLE: Record<string, { icon: string; size: number; label: string
  * landmarks. Each carries the Pal's portrait icon (shared with pals/) so the
  * marker shows which boss it is; ipos is already in our map coord system. */
 interface Boss {
-  name: { en: string; zh: string; ja: string; zhCN?: string };
+  name: { en: string; zh: string; "zh-CN"?: string; zhCN?: string; ja: string };
   x: number;
   y: number;
   lv?: number;
@@ -896,7 +896,9 @@ function PlayerMap({
         });
         L.marker([lm.y, lm.x], { icon })
           .bindTooltip(
-            `<div style="font-weight:800">${escapeHtml((lang === "zh-CN" ? lm.name.zhCN : lm.name[lang]) || lm.name.en)}</div>` +
+            `<div style="font-weight:800">${escapeHtml(
+              (lang === "zh-CN" ? lm.name["zh-CN"] ?? lm.name.zhCN : lm.name[lang]) || lm.name.en,
+            )}</div>` +
               `<div>${t(style.label)}${lm.lv ? ` · Lv.${lm.lv}` : ""}</div>`,
             { direction: "top", className: "pmap-detail" },
           )
@@ -925,7 +927,9 @@ function PlayerMap({
         });
         L.marker([b.y, b.x], { icon, riseOnHover: true })
           .bindTooltip(
-            `<div style="font-weight:800">${escapeHtml((lang === "zh-CN" ? b.name.zhCN : b.name[lang]) || b.name.en)}</div>` +
+            `<div style="font-weight:800">${escapeHtml(
+              (lang === "zh-CN" ? b.name["zh-CN"] ?? b.name.zhCN : b.name[lang]) || b.name.en,
+            )}</div>` +
               `<div>${t("野外頭目")}${b.lv ? ` · Lv.${b.lv}` : ""}</div>`,
             { direction: "top", className: "pmap-detail" },
           )

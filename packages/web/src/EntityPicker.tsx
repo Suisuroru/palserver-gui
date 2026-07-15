@@ -44,6 +44,7 @@ export function EntityPicker({
             e.name.toLowerCase().includes(q) ||
             e.id.toLowerCase().includes(q) ||
             e.zh?.includes(raw) ||
+            e["zh-CN"]?.includes(raw) ||
             e.zhCN?.includes(raw) ||
             e.ja?.includes(raw),
         )

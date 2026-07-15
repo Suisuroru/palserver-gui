@@ -2,6 +2,8 @@
 
 Pal and item catalogs (`pals.json`, `items.json`) and their icons are used to
 label IDs in the UI (giving items/Pals, moderation lists, etc.).
+Traditional Chinese, Simplified Chinese, and Japanese display names are stored
+alongside English names when the source provides them.
 
 - **Pal icons** (`pals/`): carried over from the v1 palserver-GUI assets.
 - **Item icons** (`items/`): sourced from [paldb.cc](https://paldb.cc)'s CDN,

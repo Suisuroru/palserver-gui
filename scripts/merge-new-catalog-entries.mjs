@@ -7,7 +7,7 @@
  * 用法:
  *   node scripts/merge-new-catalog-entries.mjs <items|pals> <new-entries.json> [--dry]
  *
- * new-entries.json 格式:[{ id, name, zh?, ja?, icon, iconUrl }]
+ * new-entries.json 格式:[{ id, name, zh?, "zh-CN"?, ja?, icon, iconUrl }]
  * (icon = 存檔用的檔名 = iconUrl 的 basename;iconUrl = 完整圖片 URL)
  *
  * 新條目怎麼爬,見 docs/game-data-maintenance.md。
@@ -36,6 +36,7 @@ const order = (e) => ({
   name: e.name,
   ...(e.icon ? { icon: e.icon } : {}),
   ...(e.zh ? { zh: e.zh } : {}),
+  ...(e["zh-CN"] ? { "zh-CN": e["zh-CN"] } : {}),
   ...(e.ja ? { ja: e.ja } : {}),
 });
 

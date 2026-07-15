@@ -19,7 +19,7 @@ export interface Announcement {
   enabled?: boolean;
   /** frontmatter `until: YYYY-MM-DD`:過了這天就自動不再顯示。 */
   until?: string;
-  /** frontmatter `lang: zh|en|ja`:只對該介面語言顯示;省略 = 所有語言都顯示。 */
+  /** frontmatter `lang: zh|zh-CN|en|ja`:只對該介面語言顯示;省略 = 所有語言都顯示。 */
   lang?: string;
 }
 

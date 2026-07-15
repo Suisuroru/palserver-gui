@@ -6,6 +6,9 @@
  * 資料來源:paldb.cc 的 /en、/tw、/ja 索引頁(維護者為 paldb.cc 貢獻者,
  * 已獲同意抓取;見 public/game-data/CREDITS.md)。
  *
+ * 簡中不在這裡抓:上游簡中(zhCN 欄位)由 scripts/fetch-zh-cn.mjs 負責;
+ * "zh-CN" 欄位是人工校對譯名,任何抓取腳本都不得寫入,只保留原值。
+ *
  * 用法:node scripts/fetch-game-data-i18n.mjs
  * 之後遊戲改版要更新名稱,重跑一次再 commit 即可。
  */
@@ -71,15 +74,19 @@ async function updateCatalog(file, page, kind) {
     }
     stats[field] = { filled, missing };
   }
-  // 欄位順序固定(id, name, icon, zh, ja),diff 才好讀。
-  const ordered = catalog.map(({ id, name, icon, zh, ja, ...rest }) => ({
-    id,
-    name,
-    ...(icon ? { icon } : {}),
-    ...(zh ? { zh } : {}),
-    ...(ja ? { ja } : {}),
-    ...rest,
-  }));
+  // 欄位順序固定(id, name, icon, zh, "zh-CN", zhCN, ja),diff 才好讀。
+  const ordered = catalog.map(
+    ({ id, name, icon, zh, "zh-CN": reviewed, zhCN, ja, ...rest }) => ({
+      id,
+      name,
+      ...(icon ? { icon } : {}),
+      ...(zh ? { zh } : {}),
+      ...(reviewed ? { "zh-CN": reviewed } : {}),
+      ...(zhCN ? { zhCN } : {}),
+      ...(ja ? { ja } : {}),
+      ...rest,
+    }),
+  );
   await writeFile(path.join(DATA_DIR, file), JSON.stringify(ordered) + "\n");
   console.log(`${file}: ${catalog.length} entries`, stats);
 }

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * 抓「詞條(被動)」與「主動技」目錄,給指令台的自訂帕魯選單用。含 zh(繁中)/ja(日文)名稱。
+ * 抓「詞條(被動)」與「主動技」目錄,給指令台的自訂帕魯選單用。含 zh(繁中)/zhCN(上游簡中)/ja(日文)名稱;
+ * 人工校對的 "zh-CN" 欄位只帶過不寫入(顯示時優先於 zhCN,見 docs/game-data-maintenance.md)。
  *
  * 資料來源(維護者為貢獻者,已獲同意;見 public/game-data/CREDITS.md):
  *  - 詞條(英文/rank):paldeck.cc/passives —— Next.js 串流資料裡有 {Asset(內部 id), Name, Rank}。
  *    Asset 就是 PalDefender Passives 陣列吃的內部 id。詞條沒有專屬圖示(遊戲內只有
  *    等級箭頭),所以只存 rank,前端自己畫箭頭。
- *  - 詞條 zh:paldb.cc/{en,tw}/Passive_Skills 的「Pal Passive Skills」分頁卡片列表。
+ *  - 詞條 zh/zh-CN:paldb.cc/{en,tw,cn}/Passive_Skills 的「Pal Passive Skills」分頁卡片列表。
  *    這個列表**沒有**每筆專屬 id(不像主動技有 EPalWazaID),只能靠「en/tw 兩個語言版本
  *    卡片數量相同(114/114)且排列順序一致」用位置對應 —— 已用 rank 序列逐一核對過兩版
  *    完全相同,且是唯一未對到的英文名(paldb 少收錄 1.0 新詞條「Whopper」)。
@@ -23,7 +24,7 @@
  *
  * 用法:node scripts/fetch-skills-passives.mjs
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +33,15 @@ const DATA_DIR = path.join(ROOT, "packages/web/public/game-data");
 const UA = "palserver-gui-data-sync (maintainer-approved; github.com/io-software-ai/palserver-gui)";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function readExistingById(file) {
+  try {
+    const entries = JSON.parse(await readFile(path.join(DATA_DIR, file), "utf8"));
+    return new Map(entries.map((entry) => [entry.id, entry]));
+  } catch {
+    return new Map();
+  }
+}
 
 async function get(url) {
   const res = await fetch(url, { headers: { "User-Agent": UA } });
@@ -114,6 +124,8 @@ function parsePaldbPassiveList(html) {
 
 async function main() {
   await mkdir(DATA_DIR, { recursive: true });
+  const existingPassives = await readExistingById("passives.json");
+  const existingSkills = await readExistingById("activeSkills.json");
 
   // ── 詞條(英文名 + rank,來源:paldeck) ──
   const passivesHtml = await get("https://paldeck.cc/passives");
@@ -128,12 +140,14 @@ async function main() {
   }
 
   // ── 詞條 zh(paldb en/tw 位置對應,見檔頭註解;ja 刻意留空) ──
-  const [enPassiveHtml, twPassiveHtml] = await getSequential([
+  const [enPassiveHtml, twPassiveHtml, cnPassiveHtml] = await getSequential([
     "https://paldb.cc/en/Passive_Skills",
     "https://paldb.cc/tw/Passive_Skills",
+    "https://paldb.cc/cn/Passive_Skills",
   ]);
   const enPassiveList = parsePaldbPassiveList(enPassiveHtml);
   const twPassiveList = parsePaldbPassiveList(twPassiveHtml);
+  const cnPassiveList = parsePaldbPassiveList(cnPassiveHtml);
   const enIndexByName = new Map();
   enPassiveList.forEach((e, i) => {
     if (!enIndexByName.has(e.name)) enIndexByName.set(e.name, i);
@@ -143,24 +157,41 @@ async function main() {
       `[警告] paldb en/tw 詞條卡片數量不一致(en ${enPassiveList.length} / tw ${twPassiveList.length}),位置對應可能不準,請人工複查。`,
     );
   }
+  if (enPassiveList.length !== cnPassiveList.length) {
+    console.warn(
+      `[警告] paldb en/cn 詞條卡片數量不一致(en ${enPassiveList.length} / cn ${cnPassiveList.length}),位置對應可能不準,請人工複查。`,
+    );
+  }
 
   const passives = passivesBase.map((p) => {
     const idx = enIndexByName.get(p.name);
     const zh = idx !== undefined ? twPassiveList[idx]?.name : undefined;
-    return { id: p.id, name: p.name, ...(zh ? { zh } : {}), rank: p.rank };
+    // 抓來的簡中進上游欄位 zhCN;人工校對的 "zh-CN" 原樣帶過,抓取腳本不寫入。
+    const zhCN = (idx !== undefined ? cnPassiveList[idx]?.name : undefined) ?? existingPassives.get(p.id)?.zhCN;
+    const reviewed = existingPassives.get(p.id)?.["zh-CN"];
+    return {
+      id: p.id,
+      name: p.name,
+      ...(zh ? { zh } : {}),
+      ...(reviewed ? { "zh-CN": reviewed } : {}),
+      ...(zhCN ? { zhCN } : {}),
+      rank: p.rank,
+    };
   });
   passives.sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name));
   await writeFile(path.join(DATA_DIR, "passives.json"), JSON.stringify(passives) + "\n");
 
   // ── 主動技(名稱/zh/ja 都靠 EPalWazaID 內部 id 直接對接,不必猜位置) ──
-  const [wazaHtmlEn, wazaHtmlZh, wazaHtmlJa, skillsHtml] = await getSequential([
+  const [wazaHtmlEn, wazaHtmlZh, wazaHtmlZhCN, wazaHtmlJa, skillsHtml] = await getSequential([
     "https://paldb.cc/en/Active_Skills",
     "https://paldb.cc/tw/Active_Skills",
+    "https://paldb.cc/cn/Active_Skills",
     "https://paldb.cc/ja/Active_Skills",
     "https://paldeck.cc/skills",
   ]);
   const namesEn = parsePaldbWaza(wazaHtmlEn);
   const namesZh = parsePaldbWaza(wazaHtmlZh);
+  const namesZhCN = parsePaldbWaza(wazaHtmlZhCN);
   const namesJa = parsePaldbWaza(wazaHtmlJa);
   const elements = parsePaldeckElements(nextFlight(skillsHtml));
   const skills = [];
@@ -169,12 +200,17 @@ async function main() {
     if (skillSeen.has(id)) continue;
     skillSeen.add(id);
     const zh = namesZh.get(id);
+    // 抓來的簡中進上游欄位 zhCN;人工校對的 "zh-CN" 原樣帶過,抓取腳本不寫入。
+    const zhCN = namesZhCN.get(id) ?? existingSkills.get(id)?.zhCN;
+    const reviewed = existingSkills.get(id)?.["zh-CN"];
     const ja = namesJa.get(id);
     const element = elements.get(id);
     skills.push({
       id,
       name,
       ...(zh ? { zh } : {}),
+      ...(reviewed ? { "zh-CN": reviewed } : {}),
+      ...(zhCN ? { zhCN } : {}),
       ...(ja ? { ja } : {}),
       ...(element ? { element } : {}),
     });
@@ -184,13 +220,15 @@ async function main() {
 
   // ── 統計 ──
   const passiveZhCount = passives.filter((p) => p.zh).length;
+  const passiveZhCNCount = passives.filter((p) => p.zhCN || p["zh-CN"]).length;
   const skillZhCount = skills.filter((s) => s.zh).length;
+  const skillZhCNCount = skills.filter((s) => s.zhCN || s["zh-CN"]).length;
   const skillJaCount = skills.filter((s) => s.ja).length;
   console.log(
-    `passives.json: ${passives.length} 條(zh ${passiveZhCount}/${passives.length} = ${((passiveZhCount / passives.length) * 100).toFixed(1)}%;ja 未提供 —— paldb ja 頁詞條數量少於 en/tw,無法安全位置對應,見檔頭註解)`,
+    `passives.json: ${passives.length} 條(zh ${passiveZhCount}/${passives.length};zh-CN ${passiveZhCNCount}/${passives.length};ja 未提供 —— paldb ja 頁詞條數量少於 en/tw,無法安全位置對應,見檔頭註解)`,
   );
   console.log(
-    `activeSkills.json: ${skills.length} 條(有元素 ${skills.filter((s) => s.element).length};zh ${skillZhCount}/${skills.length} = ${((skillZhCount / skills.length) * 100).toFixed(1)}%;ja ${skillJaCount}/${skills.length} = ${((skillJaCount / skills.length) * 100).toFixed(1)}%)`,
+    `activeSkills.json: ${skills.length} 條(有元素 ${skills.filter((s) => s.element).length};zh ${skillZhCount}/${skills.length};zh-CN ${skillZhCNCount}/${skills.length};ja ${skillJaCount}/${skills.length})`,
   );
 }
 

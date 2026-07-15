@@ -2,17 +2,14 @@ import { useEffect, useState } from "react";
 import { FiChevronDown } from "react-icons/fi";
 
 /**
- * i18n:中(zh-TW,原文)/ 英 / 日。
+ * i18n:繁中(zh-TW,原文)/ 簡中 / 英 / 日。
  *
- * 設計:程式碼裡的字串一律寫中文原文,t() 拿原文當 key 查字典;en/ja 字典是
- * public/i18n/{en,ja}.json 的「中文 → 譯文」對照表,查不到就顯示中文原文,
+ * 設計:程式碼裡的字串一律寫繁中原文,t() 拿原文當 key 查字典;其他語言字典是
+ * public/i18n/{zh-CN,en,ja}.json 的「繁中 → 譯文」對照表,查不到就顯示繁中原文,
  * 所以漏翻不會壞版面。插值用 {名稱} 佔位,例:t("第 {n} 天", { n })。
  *
- * 字典載入比照 promoConfig 三層:
- *  1. localStorage 快取(上次抓到的遠端版)先上,離線也有最新已知譯文;
- *  2. 同源 bundled 檔(/i18n/xx.json)墊底;
- *  3. 背景抓 GitHub raw(source of truth),抓到有變就更新快取 + 重繪 ——
- *     翻譯檔改了不用重新出版,使用者下次載入就拿到。
+ * 簡中使用同源 bundled 檔(/i18n/zh-CN.json),確保人工校對版本不被遠端覆蓋。
+ * 英/日則比照 promoConfig:localStorage 快取 → bundled → GitHub raw 背景更新。
  */
 
 export type Lang = "zh" | "zh-CN" | "en" | "ja";
@@ -32,18 +29,24 @@ const REMOTE_BASE =
 
 type Dict = Record<string, string>;
 
+function isLang(value: string | null): value is Lang {
+  return value === "zh" || value === "zh-CN" || value === "en" || value === "ja";
+}
+
+function htmlLang(l: Lang): string {
+  return l === "zh" ? "zh-TW" : l;
+}
+
 function detectLang(): Lang {
   try {
     const stored = localStorage.getItem(KEY);
-    if (stored === "zh" || stored === "zh-CN" || stored === "en" || stored === "ja") return stored;
+    if (isLang(stored)) return stored;
   } catch {
     /* ignore */
   }
   const nav = (navigator.language || "").toLowerCase();
   if (nav.startsWith("zh")) {
-    // 簡體地區(大陸/新加坡)與 Hans 標記 → 簡中;其餘(台灣/香港/澳門)→ 繁中
-    if (nav.startsWith("zh-cn") || nav.startsWith("zh-sg") || nav.includes("hans")) return "zh-CN";
-    return "zh";
+    return /(^|-)zh-(tw|hk|mo|hant)(-|$)/.test(nav) ? "zh" : "zh-CN";
   }
   if (nav.startsWith("ja")) return "ja";
   return "en";
@@ -66,6 +69,34 @@ function readDictCache(l: Lang): Dict | null {
 async function loadDict(l: Lang): Promise<void> {
   if (l === "zh" || loaded.has(l)) return;
   loaded.add(l);
+
+  if (l === "zh-CN") {
+    try {
+      const res = await fetch(`${LOCAL_BASE}${l}.json`, {
+        cache: "no-cache",
+        signal: AbortSignal.timeout(4000),
+      });
+      if (res.ok) {
+        dicts[l] = (await res.json()) as Dict;
+        try {
+          localStorage.removeItem(DICT_CACHE_PREFIX + l);
+        } catch {
+          /* ignore */
+        }
+        notify();
+        return;
+      }
+    } catch {
+      /* 同源檔不可用時再嘗試舊快取 */
+    }
+    const cached = readDictCache(l);
+    if (cached) {
+      dicts[l] = cached;
+      notify();
+    }
+    return;
+  }
+
   const cached = readDictCache(l);
   if (cached) {
     dicts[l] = cached;
@@ -118,7 +149,7 @@ export function setLang(next: Lang): void {
   } catch {
     /* 無痕模式等存不進去就只作用當次 */
   }
-  document.documentElement.lang = next === "zh" ? "zh-TW" : next;
+  document.documentElement.lang = htmlLang(next);
   void loadDict(next);
   notify();
 }
@@ -147,7 +178,7 @@ export function useI18n(): { lang: Lang; setLang: (l: Lang) => void; t: typeof t
 
 /** 啟動:套 <html lang> 並預載目前語言的字典(main.tsx 掛載前呼叫)。 */
 export function initI18n(): void {
-  document.documentElement.lang = lang === "zh" ? "zh-TW" : lang;
+  document.documentElement.lang = htmlLang(lang);
   void loadDict(lang);
 }
 

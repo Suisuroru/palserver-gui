@@ -15,7 +15,7 @@ export const htmlLang: Record<Locale, string> = { zh: 'zh-Hant', 'zh-CN': 'zh-Ha
 export const ogLocale: Record<Locale, string> = { zh: 'zh_TW', 'zh-CN': 'zh_CN', en: 'en_US', ja: 'ja_JP' };
 
 /** 語言切換器顯示的名稱。 */
-export const localeName: Record<Locale, string> = { zh: '中文', 'zh-CN': '简体中文', en: 'English', ja: '日本語' };
+export const localeName: Record<Locale, string> = { zh: '繁體中文', 'zh-CN': '简体中文', en: 'English', ja: '日本語' };
 
 /** hreflang alternates:各語系網址 + x-default。 */
 export const alternateLanguages: Record<string, string> = {

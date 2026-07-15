@@ -26,20 +26,21 @@
 
 | 檔案 | schema | 圖示資料夾 | 來源 |
 |---|---|---|---|
-| `pals.json` | `{id, name, icon?, zh?, zhCN?, ja?}` | `pals/` | paldb.cc / paldeck.cc |
-| `items.json` | `{id, name, icon?, zh?, zhCN?, ja?}` | `items/` | paldb.cc |
-| `passives.json` | `{id, name, zh?, zhCN?, ja?, rank}` | 無（前端畫箭頭） | paldb.cc + paldeck.cc |
-| `activeSkills.json` | `{id, name, zh?, zhCN?, ja?, element?}` | 無 | paldb.cc + paldeck.cc |
+| `pals.json` | `{id, name, icon?, zh?, "zh-CN"?, zhCN?, ja?}` | `pals/` | paldb.cc / paldeck.cc |
+| `items.json` | `{id, name, icon?, zh?, "zh-CN"?, zhCN?, ja?}` | `items/` | paldb.cc |
+| `passives.json` | `{id, name, zh?, "zh-CN"?, zhCN?, ja?, rank}` | 無（前端畫箭頭） | paldb.cc + paldeck.cc |
+| `activeSkills.json` | `{id, name, zh?, "zh-CN"?, zhCN?, ja?, element?}` | 無 | paldb.cc + paldeck.cc |
 | `humans.json` | `{id, name, icon?, zh?, ja?, zhCN?}` | `humans/` | paldb.cc `/Humans` 索引頁 |
 | `research.json` | `{id, name, zh?, zhCN?, ja?}` | 無 | oMaN-Rod/palworld-save-pal（id + en/zh/zhCN）+ paldb.cc（ja，同名比對，見下方專節） |
-| `landmarks.json` / `bosses.json` | `{name:{en, zh, zhCN?, ja}, x, y, ...}` | landmark-icons / pals | paldb.cc map data |
+| `landmarks.json` / `bosses.json` | `{name:{en, zh, "zh-CN"?, zhCN?, ja}, x, y, ...}` | landmark-icons / pals | paldb.cc map data |
 | `ores.json` | `{types:{key:{name, icon, color, big?}}, spots:[{t, x, y}]}` | items/（沿用物品圖示） | paldb.cc map data（`scripts/fetch-map-ores.mjs` 可重跑；礦物名稱/翻譯對接 items.json） |
 
-`zh` 是繁中、`zhCN` 是簡中（介面選簡中時前端 `displayName` / MapTab 優先取 zhCN，缺則 fallback 繁中→英文）。
+`zh` 是繁中；`"zh-CN"` 是人工校對的簡中，顯示時優先；`zhCN` 是上游抓取的簡中後備。
+兩者都缺時才 fallback 繁中→英文，避免遠端資料更新覆蓋已校對譯名。
 
 **關鍵原則**：`id` 是遊戲/PalDefender 內部 id（不是顯示名），是對接遊戲存檔與 REST 的鍵，
 **絕不能改**。名稱翻譯（zh/ja）可以更新；`id` 一旦錯了，玩家資料就對不上。JSON 一律
-compact 單行（`JSON.stringify(x) + "\n"`），欄位順序固定 `id, name, icon, zh, zhCN, ja, ...` 方便 diff。
+compact 單行（`JSON.stringify(x) + "\n"`），欄位順序固定 `id, name, icon, zh, "zh-CN", zhCN, ja, ...` 方便 diff。
 
 抓取一律帶 User-Agent `palserver-gui-data-sync (maintainer-approved; github.com/io-software-ai/palserver-gui)`
 （維護者已獲 paldb.cc 同意，見 `packages/web/public/game-data/CREDITS.md`），並禮貌節流。
@@ -171,13 +172,13 @@ node scripts/fetch-lab-research.mjs
 - **座標換算**：`savToMap(worldX, worldY)`（存檔世界座標 → 遊戲內地圖座標），marker 放在
   `L.latLng(mapY, mapX)`。paldb.cc 的 `ipos` 就等於 `savToMap` 的輸出（已用「起始之丘」校準）。
 - **地標與野外頭目的資料源**：paldb.cc 的地圖 marker 資料檔 **`https://paldb.cc/js/map_data_en.js`**
-  （i18n 版本換 `map_data_tw.js` / `map_data_ja.js`）。主陣列是 `var fixedDungeon = [...]`（~13000 筆,
+  （i18n 版本換 `map_data_tw.js` / `map_data_cn.js` / `map_data_ja.js`）。主陣列是 `var fixedDungeon = [...]`（~13000 筆,
   含各類 marker），每筆 `{id, lv?, type, item(顯示名), fixed_icon, ipos:{X,Y}}`。**`ipos.X`/`ipos.Y`
   就直接等於我們的地圖座標 x/y（已驗證,無需換算）**。
-- **地標**：`packages/web/public/game-data/landmarks.json`，`{type, x, y, lv?, name:{en,zh,ja}}`。
+- **地標**：`packages/web/public/game-data/landmarks.json`，`{type, x, y, lv?, name:{en,zh,zh-CN,ja}}`。
   type 目前有 `Fast Travel` / `Tower` / `Dungeon`（對應 `fixedDungeon` 裡同名 type），各有專屬圖示在
   `game-data/landmark-icons/`。
-- **野外頭目（Alpha Pal）**：`packages/web/public/game-data/bosses.json`，`{name:{en,zh,ja}, x, y, lv?, icon?}`。
+- **野外頭目（Alpha Pal）**：`packages/web/public/game-data/bosses.json`，`{name:{en,zh,zh-CN,ja}, x, y, lv?, icon?}`。
   取 `fixedDungeon` 裡 `type==="Alpha Pal"` 的 marker（上次 83 筆）。boss `id` = `BOSS_<palId>`,
   **去掉 `BOSS_` 前綴就對得上 `pals.json`**——名稱 zh/ja 與圖示（帕魯肖像,已在 `pals/`）都從 pals.json 取,
   少數對不上的 boss 才用 map_data 的 `item`/`fixed_icon` 兜底（缺的圖示從 cdn.paldb.cc 補下）。
@@ -192,9 +193,9 @@ node scripts/fetch-lab-research.mjs
 1. **JSON 合法**：每個改過的檔案 `JSON.parse` 過。
 2. **圖示都在**：每個有 `icon` 欄的條目，對應圖檔存在於資料夾（掃一次 `access()`，missing 應為 0）。
 3. **既有資料沒被動到**：pals/items 更新後，既有 id 全數還在、名稱沒被覆蓋（`git diff` 只該有新增）。
-4. **i18n 覆蓋率**：印出各檔 zh/ja 覆蓋率，明顯掉落就是解析壞了。抓不到的誠實留空，**不要**塞英文或 `-`。
+4. **i18n 覆蓋率**：印出各檔 zh/zh-CN/ja 覆蓋率，明顯掉落就是解析壞了。抓不到的誠實留空，**不要**塞英文或 `-`。
 5. **build 過**：`pnpm --filter @palserver/web exec vite build`。
-6. **抽查渲染**：挑幾個新怕魯/物品，確認 name/zh/ja/icon 四欄都對。
+6. **抽查渲染**：挑幾個新怕魯/物品，確認 name/zh/zh-CN/ja/icon 五欄都對。
 7. commit 時**只加自己動到的檔**（使用者常同時在改別的檔案，用明確路徑 `git add`，別 `git add -A`）。
 
 ## 補簡體中文 zhCN 欄位
@@ -218,7 +219,7 @@ node scripts/fetch-lab-research.mjs
 - 怕魯索引頁不完整（只 120），完整清單走 paldeck.cc/pals，別浪費時間在 paldb 分頁上。
 - 圖示偶爾 403，別讓整批中斷；缺圖的條目留著、拿掉 icon 欄即可。
 - 詞條沒有可靠的多語 id 對接來源，zh 只能位置對齊、ja 拿不到——這是來源限制，不是你的 bug。
-- **補既有怕魯/物品譯名最穩的抓法**：`https://paldb.cc/tw/<英文顯示名>` 與 `/ja/<英文顯示名>` 頁的
+- **補既有怕魯/物品譯名最穩的抓法**：`https://paldb.cc/tw/<英文顯示名>`、`/cn/<英文顯示名>` 與 `/ja/<英文顯示名>` 頁的
   `<meta property="og:title">` 就是該語言顯示名（空白換底線，例 `/tw/Eidrolon`、`/ja/Azurobe_Cryst`）。
   新怕魯常「先有 id/en、後有譯名」——paldeck 還沒收的，paldb 通常已有頁 + og:title，用它填 zh/ja
   比索引頁 anchor 可靠（連變體頁都有）。物品內部 id 則到 `paldb.cc/en/<slug>` 抓第一個 `?s=Items%2F<id>`

@@ -3,8 +3,7 @@
 /* palserver GUI design tokens — Palworld-community-flavored: soft, round, friendly.
    Light = sunny grassland (cream + sky blue), dark = the plum night of GUI v1. */
 @theme {
-  --font-sans: "Nunito", "Varela Round", "Hiragino Maru Gothic ProN", "Yuanti TC",
-    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Nunito", "Varela Round", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --color-sky-soft: #eef7fb;
   --color-card: #ffffff;
@@ -22,6 +21,28 @@
   --radius-cute: 18px;
   --shadow-cute: 0 6px 18px rgb(63 167 224 / 0.12);
   --shadow-cute-hover: 0 10px 24px rgb(63 167 224 / 0.2);
+}
+
+/* Keep the rounded Latin UI font, then use glyphs designed for the active CJK locale. */
+html:lang(zh-CN) {
+  --font-sans: "Nunito", "Varela Round", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+}
+
+html:lang(zh-TW) {
+  --font-sans: "Nunito", "Varela Round", "PingFang TC", "Noto Sans CJK TC",
+    "Noto Sans TC", "Microsoft JhengHei", "Yuanti TC", system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+}
+
+html:lang(ja) {
+  --font-sans: "Nunito", "Varela Round", "Hiragino Maru Gothic ProN", "Yu Gothic",
+    "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
 }
 
 :root {
