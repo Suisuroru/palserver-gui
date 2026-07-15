@@ -409,3 +409,103 @@ lang: ja
 - 既存インストールを指定したインスタンスでは利用できません(お客様自身のファイルの誤削除を防ぐため)
 
 更新に失敗したら、まず「今すぐ更新」をもう一度(ファイル検証込み)。それでも失敗する場合に再インストールをお使いください。
+
+===
+
+---
+id: 2026-07-force-update-button
+title: 伺服器更新失敗?用新的「立即更新」按鈕強制更新
+lang: zh
+---
+
+請先把 GUI 更新到 **v2.2.6 以上**(有開自動更新會自己完成)。
+
+更新後到**綜覽頁 → 遊戲版本**卡片,會看到一顆**新出現的灰色「立即更新」按鈕**——以前只有偵測到新版本才會顯示,現在**常駐**。
+
+## 怎麼用
+
+1. 停止伺服器
+2. 點灰色的「**立即更新**」→ 確認 → 等進度跑完
+
+## 為什麼要這樣做
+
+- **有些環境連不上 Steam**,偵測不到版本落差,舊版按鈕根本不會出現 —— 現在不管偵測結果如何都能強制更新
+- 更新本身**內含檔案完整性驗證**,等於順便修復損壞的檔案,已是最新版也可以放心按
+- 搭配 v2.2.5–2.2.6 的修復:更新前會**自動清除**崩潰殘留、鎖住伺服器檔案的程序(CrashReportClient 等)——先前一直更新失敗(`0xE0434352`)的島主,現在按這顆按鈕就會成功
+
+還是失敗的話,錯誤訊息會直接顯示原因(含診斷輸出),依指引處理或帶著訊息到 Discord 找我們。
+
+===
+
+---
+id: 2026-07-force-update-button
+title: 服务器更新失败?用新的「立即更新」按钮强制更新
+lang: zh-CN
+---
+
+请先把 GUI 更新到 **v2.2.6 以上**(有开自动更新会自己完成)。
+
+更新后到**综览页 → 游戏版本**卡片,会看到一颗**新出现的灰色「立即更新」按钮**——以前只有检测到新版本才会显示,现在**常驻**。
+
+## 怎么用
+
+1. 停止服务器
+2. 点灰色的「**立即更新**」→ 确认 → 等进度跑完
+
+## 为什么要这样做
+
+- **有些环境连不上 Steam**,检测不到版本落差,旧版按钮根本不会出现 —— 现在不管检测结果如何都能强制更新
+- 更新本身**内含档案完整性验证**,等于顺便修复损坏的档案,已是最新版也可以放心按
+- 搭配 v2.2.5–2.2.6 的修复:更新前会**自动清除**崩溃残留、锁住服务器档案的程序(CrashReportClient 等)——先前一直更新失败(`0xE0434352`)的岛主,现在按这颗按钮就会成功
+
+还是失败的话,错误信息会直接显示原因(含诊断输出),按指引处理或带着信息到 Discord 找我们。
+
+===
+
+---
+id: 2026-07-force-update-button
+title: Server update failing? Force it with the new "Update Now" button
+lang: en
+---
+
+First, update the GUI to **v2.2.6 or later** (auto-update does this for you).
+
+Then open **Overview → Game Version** — you'll see a **new gray "Update Now" button**. It used to appear only when a version gap was detected; it's now **always there**.
+
+## How to use it
+
+1. Stop the server
+2. Click the gray "**Update Now**" → confirm → let the progress bar finish
+
+## Why
+
+- **Some networks can't reach Steam**, so no version gap is ever detected and the old button never appeared — now you can force an update regardless
+- The update itself **includes file validation**, so it doubles as a repair; it's safe to press even when already up to date
+- Combined with the v2.2.5–2.2.6 fixes, updates now **automatically terminate** crash-leftover processes locking server files (CrashReportClient etc.) — if your updates kept failing with `0xE0434352`, this button should now succeed
+
+If it still fails, the error message shows the cause inline (with diagnostic output) — follow the hint or bring it to our Discord.
+
+===
+
+---
+id: 2026-07-force-update-button
+title: サーバー更新が失敗する?新しい「今すぐ更新」ボタンで強制更新
+lang: ja
+---
+
+まず GUI を **v2.2.6 以上**へ更新してください(自動更新が有効なら自動で完了します)。
+
+その後、**概要ページ → ゲームバージョン**カードを開くと、**新しく表示されるグレーの「今すぐ更新」ボタン**があります。従来はバージョン差を検出したときだけ表示されましたが、**常時表示**になりました。
+
+## 使い方
+
+1. サーバーを停止
+2. グレーの「**今すぐ更新**」をクリック → 確認 → 進捗完了を待つ
+
+## 理由
+
+- **Steam に接続できない環境**ではバージョン差が検出できず、従来のボタンは表示すらされませんでした —— 検出結果に関わらず強制更新できるようになりました
+- 更新には**ファイル整合性チェック**が含まれるため、破損ファイルの修復も兼ねます。最新版でも押して問題ありません
+- v2.2.5–2.2.6 の修正と合わせて、更新前にクラッシュ残留プロセス(CrashReportClient など)を**自動終了**します —— `0xE0434352` で更新が失敗し続けていた方も、このボタンで成功するはずです
+
+それでも失敗する場合、エラーメッセージに原因(診断出力付き)が直接表示されます。案内に従うか、Discord までお持ちください。
