@@ -3,7 +3,7 @@ import { FiAward, FiBookOpen, FiDollarSign, FiHome, FiLock, FiRefreshCw, FiTrend
 import type { SaveScanStats, SaveScanPlayerStat } from "@palserver/shared";
 import { hasFeature } from "@palserver/shared";
 import type { AgentClient } from "./api";
-import { displayName, useGameData, type GameData } from "./gameData";
+import { displayName, palIconUrl, useGameData, type GameData } from "./gameData";
 import { t, useI18n } from "./i18n";
 import { btnGhost, card, errorCls } from "./ui";
 
@@ -128,18 +128,22 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
             <Board
               icon={<FiTrendingUp className="size-4 text-pal" />}
               title={t("等級榜")}
-              rows={topBy(latest.players, (p) => p.level ?? -1).map((p) => ({
+              hint={t("玩家等級(掃描當下);+n 為與上次掃描相比的成長")}
+              rows={topBy(latest.players.filter((p) => p.level !== null), (p) => p.level ?? -1).map((p) => ({
                 key: p.uid,
+                avatar: <PlayerAvatar seed={p.uid} gameData={gameData} />,
                 name: p.name,
-                value: p.level !== null ? `Lv.${p.level}` : "—",
+                value: `Lv.${p.level}`,
                 delta: levelDelta(p, prev),
               }))}
             />
             <Board
               icon={<FiDollarSign className="size-4 text-pal" />}
               title={t("財富榜")}
+              hint={t("金幣(含離線背包);解析不到金錢的玩家不列入")}
               rows={topBy(latest.players.filter((p) => p.money !== null), (p) => p.money ?? -1).map((p) => ({
                 key: p.uid,
+                avatar: <PlayerAvatar seed={p.uid} gameData={gameData} />,
                 name: p.name,
                 value: (p.money ?? 0).toLocaleString(),
               }))}
@@ -147,9 +151,11 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
             <Board
               icon={<FiBookOpen className="size-4 text-pal" />}
               title={t("圖鑑收集榜")}
+              hint={t("圖鑑已登錄或捕捉過的物種數 / 全部物種")}
               rows={topBy(latest.players.filter((p) => p.paldeckCount !== null), (p) => p.paldeckCount ?? -1).map(
                 (p) => ({
                   key: p.uid,
+                  avatar: <PlayerAvatar seed={p.uid} gameData={gameData} />,
                   name: p.name,
                   value: paldeckLabel(p.paldeckCount ?? 0, gameData),
                 }),
@@ -158,8 +164,10 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
             <Board
               icon={<FiZap className="size-4 text-pal" />}
               title={t("最強帕魯榜")}
+              hint={t("每位玩家最強的一隻:等級 → 個體值總和 → 星級")}
               rows={topBy(latest.players.filter((p) => p.topPal), (p) => topPalKey(p)).map((p) => ({
                 key: p.uid,
+                avatar: <PalFace p={p} gameData={gameData} />,
                 name: palLabel(p, gameData),
                 value: t("Lv.{lv} · IV {iv} · 主人 {name}", {
                   lv: p.topPal?.level ?? "—",
@@ -171,6 +179,7 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
             <Board
               icon={<FiHome className="size-4 text-pal" />}
               title={t("公會榜")}
+              hint={t("依成員數排序")}
               rows={topBy(latest.guilds, (g) => g.memberCount).map((g) => ({
                 key: g.id,
                 name: g.name,
@@ -188,6 +197,39 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
         </div>
       )}
     </div>
+  );
+}
+
+/* ── 頭像:與玩家清單同一套「以 id 雜湊固定選一隻帕魯臉」(帕魯世界沒有玩家頭像) ── */
+
+function PlayerAvatar({ seed, gameData, size = 24 }: { seed: string; gameData: GameData | null; size?: number }) {
+  const withIcons = gameData?.pals.filter((p) => p.icon) ?? [];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  const pal = withIcons.length ? withIcons[hash % withIcons.length] : null;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-line bg-card-soft"
+      style={{ width: size, height: size }}
+    >
+      {pal?.icon ? <img src={palIconUrl(pal.icon)} alt="" className="size-full object-cover" /> : null}
+    </span>
+  );
+}
+
+/** 最強帕魯榜用:該物種的真實圖示;目錄查不到就退回玩家頭像。 */
+function PalFace({ p, gameData, size = 24 }: { p: SaveScanPlayerStat; gameData: GameData | null; size?: number }) {
+  const species = p.topPal
+    ? gameData?.palByIdLower.get(p.topPal.characterId.replace(/^boss_/i, "").toLowerCase())
+    : undefined;
+  if (!species?.icon) return <PlayerAvatar seed={p.uid} gameData={gameData} size={size} />;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-line bg-card-soft"
+      style={{ width: size, height: size }}
+    >
+      <img src={palIconUrl(species.icon)} alt="" className="size-full object-cover" />
+    </span>
   );
 }
 
@@ -293,21 +335,27 @@ function WeeklyReport({ latest, prev }: { latest: SaveScanStats; prev: SaveScanS
 function Board({
   icon,
   title,
+  hint,
   rows,
 }: {
   icon: React.ReactNode;
   title: string;
-  rows: { key: string; name: string; value: string; delta?: string }[];
+  /** 榜單規則一句話(顯示在標題下) */
+  hint?: string;
+  rows: { key: string; name: string; value: string; delta?: string; avatar?: React.ReactNode }[];
 }) {
   return (
     <div className={`${card} flex flex-col gap-2`}>
-      <p className="inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
-        {icon} {title}
-      </p>
+      <div>
+        <p className="inline-flex items-center gap-1.5 text-sm font-extrabold text-ink-muted">
+          {icon} {title}
+        </p>
+        {hint && <p className="mt-0.5 text-[11px] text-ink-muted/80">{hint}</p>}
+      </div>
       {rows.length === 0 ? (
         <p className="text-[13px] text-ink-muted">{t("沒有資料")}</p>
       ) : (
-        <ol className="flex flex-col gap-1">
+        <ol className="flex flex-col gap-1.5">
           {rows.map((r, i) => (
             <li key={r.key} className="flex items-center gap-2 text-[13px]">
               <span
@@ -317,6 +365,7 @@ function Board({
               >
                 {i + 1}
               </span>
+              {r.avatar}
               <span className="min-w-0 flex-1 truncate font-bold">{r.name}</span>
               {r.delta && <span className="shrink-0 text-xs font-extrabold text-pal">{r.delta}</span>}
               <span className="shrink-0 font-mono text-xs text-ink-muted">{r.value}</span>

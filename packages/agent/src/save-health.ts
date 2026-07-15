@@ -522,12 +522,16 @@ class Analyzer {
             else if (v.startsWith("EPalGenderType::")) e.gender = v;
           } else if (t.name === "numberValue") {
             const n = Number(t.value);
-            if (prev === "Level") e.levelNum = n;
-            else if (prev === "Exp") e.expNum = n;
-            else if (prev === "Rank") e.rank = n;
-            else if (prev === "Talent_HP") e.talentHp = n;
-            else if (prev === "Talent_Shot") e.talentShot = n;
-            else if (prev === "Talent_Defense") e.talentDefense = n;
+            // Int/Int64Property 的數字直接在 <欄位>.value;ByteProperty(Level/Rank/Talent_*)
+            // 多包一層 enum 殼:<欄位>.value = {type:"None", value:<byte>} → 數字在 .value.value,
+            // 此時欄位名要往上多看一層(cheahjs archive.py ByteProperty 序列化,palsav 同構)。
+            const field = prev === "value" && rel.length >= 3 ? rel[rel.length - 3] : prev;
+            if (field === "Level") e.levelNum = n;
+            else if (field === "Exp") e.expNum = n;
+            else if (field === "Rank") e.rank = n;
+            else if (field === "Talent_HP") e.talentHp = n;
+            else if (field === "Talent_Shot") e.talentShot = n;
+            else if (field === "Talent_Defense") e.talentDefense = n;
           } else if (t.name === "trueValue" && prev === "IsRarePal") {
             e.isLucky = true;
           }

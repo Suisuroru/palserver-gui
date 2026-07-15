@@ -1317,5 +1317,10 @@
   "全服金錢 {sign}{n}": "Server-wide money {sign}{n}",
   "再掃描一次就會有「與上次掃描相比」的變化報告(以兩次掃描為比較基準)。": "Scan once more to get a \"since last scan\" change report (it compares the two most recent scans).",
   "還沒有排行榜資料。掃描一次存檔就會出現(掃描也會更新健檢與玩家/公會快照)。": "No leaderboard data yet. Run a save scan to generate it (the scan also refreshes the health report and player/guild snapshots).",
-  "這是贊助者專屬功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。": "This is a sponsor-exclusive feature. Enter your sponsor key under Settings → Sponsor key to unlock it."
+  "這是贊助者專屬功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。": "This is a sponsor-exclusive feature. Enter your sponsor key under Settings → Sponsor key to unlock it.",
+  "玩家等級(掃描當下);+n 為與上次掃描相比的成長": "Player level at scan time; +n shows growth since the previous scan",
+  "金幣(含離線背包);解析不到金錢的玩家不列入": "Gold coins (including offline inventory); players whose money can't be parsed are excluded",
+  "圖鑑已登錄或捕捉過的物種數 / 全部物種": "Species registered in the Paldeck or captured / all species",
+  "每位玩家最強的一隻:等級 → 個體值總和 → 星級": "Each player's strongest Pal: level → total IVs → stars",
+  "依成員數排序": "Sorted by member count"
 }

@@ -37,7 +37,9 @@ function playerEntry(uid: string, name: string, level: number) {
   return charEntry(uid, {
     IsPlayer: { value: true },
     NickName: { value: name },
-    Level: { value: `__RAW_${level}__` },
+    // Level/Rank/Talent_* 是 ByteProperty:數字包在 enum 殼裡(<欄位>.value.value),
+    // 與 Int/Int64(如 Exp)的 <欄位>.value 不同 — 實機存檔踩過的坑,形狀勿改平。
+    Level: { value: { type: "None", value: `__RAW_${level}__` } },
     Exp: { value: `__RAW_${level * 1000}__` },
   });
 }
@@ -54,13 +56,14 @@ function palEntry(
   return charEntry(ZERO, {
     CharacterID: { value: characterId },
     SlotId: { value: { ContainerId: { value: { ID: { value: opts.containerId ?? "cont-default" } } }, SlotIndex: { value: `__RAW_0__` } } },
-    Level: { value: `__RAW_${level}__` },
+    // ByteProperty 殼(同 playerEntry 註解)
+    Level: { value: { type: "None", value: `__RAW_${level}__` } },
     Gender: { value: { type: "EPalGenderType", value: "EPalGenderType::Female" } },
-    Rank: { value: `__RAW_1__` },
+    Rank: { value: { type: "None", value: `__RAW_1__` } },
     ...(opts.lucky ? { IsRarePal: { value: true } } : {}),
-    Talent_HP: { value: `__RAW_${hp}__` },
-    Talent_Shot: { value: `__RAW_${shot}__` },
-    Talent_Defense: { value: `__RAW_${def}__` },
+    Talent_HP: { value: { type: "None", value: `__RAW_${hp}__` } },
+    Talent_Shot: { value: { type: "None", value: `__RAW_${shot}__` } },
+    Talent_Defense: { value: { type: "None", value: `__RAW_${def}__` } },
     OwnerPlayerUId: { value: owner },
     PassiveSkillList: { value: { values: opts.passives ?? [] } },
   });
