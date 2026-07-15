@@ -432,10 +432,11 @@ test("公會快照:成員/據點駐守帕魯/研究/倉庫二趟收集", async (
                     value: {
                       RawData: {
                         value: {
+                          // 真實 research_id 無前綴,形如 "EmitFlame1"/"Cool3_2"
                           research_info: {
-                            values: [{ research_id: "Research_Farm_01", work_amount: 120.5 }],
+                            values: [{ research_id: "EmitFlame1", work_amount: 120.5 }],
                           },
-                          current_research_id: "Research_Farm_02",
+                          current_research_id: "Handcraft1",
                         },
                       },
                     },
@@ -461,8 +462,8 @@ test("公會快照:成員/據點駐守帕魯/研究/倉庫二趟收集", async (
     g.bases[0].workers.map((w) => w.characterId).sort(),
     ["Kitsunebi", "SheepBall"],
   );
-  assert.equal(g.research!.currentId, "Research_Farm_02");
-  assert.deepEqual(g.research!.entries, [{ id: "Research_Farm_01", workAmount: 120.5 }]);
+  assert.equal(g.research!.currentId, "Handcraft1");
+  assert.deepEqual(g.research!.entries, [{ id: "EmitFlame1", workAmount: 120.5 }]);
 
   // 倉庫:一趟拿到目標容器 id,二趟收內容
   assert.equal(g.storage, null);

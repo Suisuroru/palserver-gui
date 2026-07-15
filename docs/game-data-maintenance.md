@@ -14,6 +14,7 @@
 | 新物品、新武器、新道具 | `items.json` + `items/` 圖示 |
 | 新詞條（被動技） | `passives.json` |
 | 新主動技 | `activeSkills.json` |
+| 公會 Lab Research 新增/改動研究項目 | `research.json`（見「更新公會研究目錄」一節） |
 | 新地區 / 地圖重繪 | 地圖底圖 + `landmarks.json` + `bosses.json` + `ores.json`（見最後一節） |
 | 新野外頭目（Alpha Pal） | `bosses.json`（見最後一節） |
 | 新礦物 / 礦點變動 | `ores.json`：跑 `node scripts/fetch-map-ores.mjs`；新礦種要先在腳本的 `TYPES` 補「map_data type → items.json id」對照 |
@@ -30,6 +31,7 @@
 | `passives.json` | `{id, name, zh?, zhCN?, ja?, rank}` | 無（前端畫箭頭） | paldb.cc + paldeck.cc |
 | `activeSkills.json` | `{id, name, zh?, zhCN?, ja?, element?}` | 無 | paldb.cc + paldeck.cc |
 | `humans.json` | `{id, name, icon?, zh?, ja?, zhCN?}` | `humans/` | paldb.cc `/Humans` 索引頁 |
+| `research.json` | `{id, name, zh?, zhCN?, ja?}` | 無 | oMaN-Rod/palworld-save-pal（id + en/zh/zhCN）+ paldb.cc（ja，同名比對，見下方專節） |
 | `landmarks.json` / `bosses.json` | `{name:{en, zh, zhCN?, ja}, x, y, ...}` | landmark-icons / pals | paldb.cc map data |
 | `ores.json` | `{types:{key:{name, icon, color, big?}}, spots:[{t, x, y}]}` | items/（沿用物品圖示） | paldb.cc map data（`scripts/fetch-map-ores.mjs` 可重跑；礦物名稱/翻譯對接 items.json） |
 
@@ -114,6 +116,49 @@ Syndicate/邪教/競技場角色等）都歸在這頁，id 仍在 `Pals` namespa
 
 ---
 
+## 更新公會研究目錄（research.json）
+
+公會頁要標示存檔 `GuildExtraSaveDataMap → Lab → research_info.values[].research_id` /
+`current_research_id`（見 `packages/agent/src/save-health.ts`）——這是 Feybreak 改版
+加入的「公會研究（Pal Labor Research Laboratory）」科技樹，168 個研究項目分 9 大類
+（Handiwork/Kindling/Watering/Planting/Generating Electricity/Lumbering/Mining/
+Cooling/Medicine Production）。這份**跟其他 game-data 檔案的來源管線不一樣**，重跑前
+務必先看完這節，不要照抄 items/pals 那套。
+
+```
+node scripts/fetch-lab-research.mjs
+```
+
+**來源特殊之處**：
+
+- paldb.cc 的 `/{en,ja}/Pal_Labor_Research_Laboratory` 頁**沒有內部 id**——跟
+  Items/Pals/Humans 索引頁不同，這頁完全沒有 `data-hover="?s=..."` 這類 anchor
+  （已用 curl 實測確認），只有「顯示名稱 + 需求等級」的敘述卡片。paldeck.cc 也沒有
+  研究相關頁面。
+- 內部 id（如 `EmitFlame1`、`Cool3_2`）+ en/zh（繁）/zhCN（簡）名稱改抓
+  **`oMaN-Rod/palworld-save-pal`**（一款有 Discord 社群、持續維護的存檔編輯器）
+  GitHub repo 的 `data/json/lab_research.json` +
+  `data/json/l10n/{en,zh-Hant,zh-Hans}/lab_research.json`，168/168 筆全覆蓋。
+  該專案前端 `labResearch.svelte.ts` 直接拿這些 id 去對存檔查表，佐證這批 id 就是
+  真實存檔的 `research_id` 值。**這個 repo 沒有標示授權**——不是 paldb.cc/paldeck.cc
+  那種本專案維護者已取得許可的關係，commit 前自行評估是否要保留這個來源（見
+  `CREDITS.md` 的完整說明）。
+- **ja 沒有官方來源可以直接對接**：`oMaN-Rod` repo 完全不支援日文（整個專案所有
+  語言檔都沒有 `ja`）。改用「同名比對」從 paldb.cc 補：paldb 的 en/ja 頁是同一份
+  資料庫渲染出的兩個語言版本，168 張卡片彼此逐一對應（同站同頁面結構的跨語言對接
+  可靠），但 **paldb 卡片的頁面呈現順序跟 `oMaN-Rod` 的 id 順序對不上**（例如
+  paldb 把「Flame Cauldron Development」排在 Kindling 分類第 3 張，`oMaN-Rod`
+  卻排在該分類最後一筆）——所以**不能位置對齊**，腳本改成：先把兩邊都依「分類」
+  分組（分類名稱與筆數已核對過一一對應，見腳本內 `CATEGORY_MAP`），組內用
+  「英文顯示名字串完全相同」鎖定同一張卡，才取該卡的 ja 名稱。上次跑出
+  167/168（只有 `EmitFlame1_6`「Kindling Lv6」paldb 清單沒收錄，留空，不硬湊）。
+- 若之後 paldb 改版導致 `CATEGORY_MAP` 的分類名稱或筆數對不上，腳本會印出警告；
+  重新核對「paldb 分類名稱 → `oMaN-Rod` category 欄位」與筆數即可修正。
+- 無圖示：paldb 研究頁的圖示是「效果類型」共用圖（例如 `CraftSpeed_00` 給同分類多個
+  等級共用），不是每個研究項目專屬美術，比照 `passives.json` 不下載圖示。
+
+---
+
 ## 更新地圖（底圖 + 地標）
 
 地圖在 `packages/web/src/MapTab.tsx`，用 Leaflet `CRS.Simple` 把一張大底圖鋪成座標系。
@@ -178,3 +223,10 @@ Syndicate/邪教/競技場角色等）都歸在這頁，id 仍在 `Pals` namespa
   新怕魯常「先有 id/en、後有譯名」——paldeck 還沒收的，paldb 通常已有頁 + og:title，用它填 zh/ja
   比索引頁 anchor 可靠（連變體頁都有）。物品內部 id 則到 `paldb.cc/en/<slug>` 抓第一個 `?s=Items%2F<id>`
   （顯示名 slug ≠ 內部 id，例 木板 `Wooden_Board` 的 id 是 `Processed_Wood`）。
+- **公會研究（research.json）沒有內部 id 可抓的索引頁**：paldb.cc 的
+  `Pal_Labor_Research_Laboratory` 頁只有敘述卡片、無 `data-hover` anchor，跟其他
+  paldb 索引頁的結構完全不同——別再花時間找這頁的 id anchor，改走
+  `oMaN-Rod/palworld-save-pal` GitHub repo（見「更新公會研究目錄」一節）。
+- **research.json 的 ja 是「同名比對」不是「位置比對」**：paldb 的卡片頁面順序跟
+  `oMaN-Rod` 的 id 順序不一致（同分類內排序依據不同），直接位置對齊會整批錯位；
+  一律先用英文顯示名字串鎖定同一張卡再取 ja，對不上就留空。

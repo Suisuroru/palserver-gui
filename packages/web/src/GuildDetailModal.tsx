@@ -226,9 +226,10 @@ function ResearchSection({
   );
 }
 
-/** 研究名稱:優先 game-data 對照表(research.json),查無退回可讀化 id。 */
+/** 研究名稱:優先 game-data 對照表(research.json),查無退回可讀化 id。
+ *  真實 research_id 形如 "EmitFlame1"/"Cool3_2"(無前綴),fallback 只做底線轉空格。 */
 export function researchName(gameData: GameData | null, id: string): string {
   const meta = gameData?.researchById.get(id) ?? gameData?.researchById.get(id.toLowerCase());
   if (meta) return displayName(meta);
-  return id.replace(/^Research_/i, "").replace(/_/g, " ");
+  return id.replace(/_/g, " ");
 }

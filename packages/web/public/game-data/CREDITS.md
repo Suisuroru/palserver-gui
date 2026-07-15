@@ -16,10 +16,36 @@ label IDs in the UI (giving items/Pals, moderation lists, etc.).
   and icons from [paldb.cc](https://paldb.cc)'s `Humans` index page (`en`/`tw`/
   `ja`/`cn`), which lists non-Pal characters (capturable human NPCs, Syndicate/
   cult/arena characters, etc.) under the shared `Pals` id namespace.
+- **Guild Lab Research catalog** (`research.json`): labels the save file's
+  `research_id` / `current_research_id` (Guild → Lab, the Feybreak-update "Pal
+  Labor Research Laboratory" tech tree). paldb.cc's own
+  [`Pal_Labor_Research_Laboratory`](https://paldb.cc/en/Pal_Labor_Research_Laboratory)
+  page has **no internal ids** (unlike its Items/Pals/Humans indexes — no
+  `data-hover` anchors at all, confirmed by inspection), and paldeck.cc has no
+  research page. Internal ids + English/Traditional-Chinese/Simplified-Chinese
+  names come from
+  [`oMaN-Rod/palworld-save-pal`](https://github.com/oMaN-Rod/palworld-save-pal)
+  (an actively maintained, Discord-backed Palworld save editor with a full lab
+  research tree UI — its own frontend keys off these same ids to look up
+  saves, which is corroborating evidence they match real save `research_id`
+  values), specifically `data/json/lab_research.json` +
+  `data/json/l10n/{en,zh-Hant,zh-Hans}/lab_research.json` (168/168 entries,
+  full coverage). **Caveat**: that repo has no stated license (not the
+  established paldb.cc/paldeck.cc "maintainer is a contributor" relationship
+  this project otherwise relies on) — re-review before treating this as
+  settled if that matters to you. Japanese names aren't available there (the
+  repo has no `ja` locale for anything, not just this file) — `ja` is instead
+  filled in from paldb.cc's `en`/`ja` `Pal_Labor_Research_Laboratory` pages by
+  matching identical English display-name strings within the same category
+  (not by page position, which does *not* line up between paldb and the
+  `oMaN-Rod` id order — verified by inspection); one entry (`EmitFlame1_6`,
+  "Kindling Lv6") has no `ja` because paldb's own list doesn't include that
+  tier, and is left blank rather than guessed.
 
 `passives.json` / `activeSkills.json` are regenerated with
 `node scripts/fetch-skills-passives.mjs`. `humans.json` is regenerated with
-`node scripts/fetch-human-npcs.mjs`.
+`node scripts/fetch-human-npcs.mjs`. `research.json` is regenerated with
+`node scripts/fetch-lab-research.mjs`.
 
 All Palworld artwork is © Pocketpair, Inc. These icons are bundled only to
 label in-game entities within this management tool.
