@@ -62,7 +62,13 @@ import {
   writeFileInPodBrowser,
 } from "./k8s-file-browser.js";
 import * as saves from "./saves.js";
-import { getHealthStatus, getPlayerProfile, getPlayersSummary, startHealthCheck } from "./save-tools.js";
+import {
+  getHealthStatus,
+  getPlayerProfile,
+  getPlayersSnapshotFull,
+  getPlayersSummary,
+  startHealthCheck,
+} from "./save-tools.js";
 import { applyHostFix } from "./host-save-fix.js";
 import { getEngineSettings, writeEngineSettings } from "./engine-ini.js";
 import { getConfigHealth, regenerateConfig } from "./config-health.js";
@@ -1443,6 +1449,9 @@ export function registerRoutes(
       .object({
         worldGuid: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "世界 GUID 格式不合法").optional(),
         uid: z.string().regex(/^[0-9A-Fa-f-]{32,36}$/, "玩家 UID 格式不合法").optional(),
+        // withPals=1:整份快照含全部帕魯明細 —— 玩家詳情用 instanceId 做跨來源
+        // 全域對聯(共玩轉檔的存檔,帕魯歸屬常掛在殘留 uid 上,不能只查單一玩家)。
+        withPals: z.enum(["1"]).optional(),
       })
       .parse(req.query);
     const worldGuid = q.worldGuid ?? (await saves.activeWorldGuidAsync(rec, ctxOf(rec)));
@@ -1452,6 +1461,7 @@ export function registerRoutes(
       if (!profile) throw Object.assign(new Error("快照裡沒有這個玩家(可能需要重新掃描)"), { statusCode: 404 });
       return { worldGuid, profile };
     }
+    if (q.withPals) return { worldGuid, ...getPlayersSnapshotFull(ctxOf(rec), worldGuid) };
     return getPlayersSummary(ctxOf(rec), worldGuid);
   });
 

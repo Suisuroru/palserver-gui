@@ -1203,5 +1203,13 @@
  "個體值、詞條與離線玩家資料是贊助者功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。": "IVs, passives, and offline player data are sponsor features. Enter your code under Settings → Sponsor Code to unlock.",
  "即時玩家細節需要安裝 PalDefender 並啟用其 REST API;或用上方「從存檔刷新」改讀存檔資料。": "Live player details require PalDefender with its REST API enabled — or use \"Refresh from Save\" above to read save data instead.",
  "PalDefender 讀不到離線玩家的帕魯;可用「從存檔刷新」改讀存檔資料。": "PalDefender can't read an offline player's pals — use \"Refresh from Save\" to read them from the save instead.",
- "無法取得存檔快照:{reason}": "Couldn't fetch the save snapshot: {reason}"
+ "無法取得存檔快照:{reason}": "Couldn't fetch the save snapshot: {reason}",
+ "據點工作中": "Working at Base",
+ "僅存檔(即時清單未列出)": "Save only (not in the live list)",
+ "存檔快照與即時資料對不上(快照可能是舊版本掃的)。點「從存檔刷新」重掃一次,即可顯示個體值與詞條。": "The save snapshot doesn't line up with live data (it may have been scanned by an older version). Click \"Refresh from Save\" to rescan and show IVs and passives.",
+ "血": "HP",
+ "攻": "ATK",
+ "防": "DEF",
+ "幸運": "Lucky",
+ "背包": "Inventory"
 }

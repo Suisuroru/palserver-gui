@@ -625,6 +625,17 @@ export class AgentClient {
     return this.request(`/api/instances/${id}/saves/players-snapshot${q}`);
   }
 
+  /** 整份快照含全部帕魯明細(玩家詳情的跨來源對聯用)。 */
+  playersSnapshotFull(id: string, worldGuid?: string): Promise<{
+    worldGuid: string;
+    generatedAt: string | null;
+    levelSavMtime: string | null;
+    players: SavePlayerProfile[];
+  }> {
+    const q = worldGuid ? `&worldGuid=${encodeURIComponent(worldGuid)}` : "";
+    return this.request(`/api/instances/${id}/saves/players-snapshot?withPals=1${q}`);
+  }
+
   playerSnapshotProfile(
     id: string,
     worldGuid: string,
