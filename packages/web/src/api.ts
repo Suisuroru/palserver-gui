@@ -711,7 +711,7 @@ export class AgentClient {
   playitUnlink(): Promise<PlayitStatus> {
     return this.request("/api/playit", { method: "DELETE" });
   }
-  playitTunnel(id: string): Promise<{ address: string | null; pending: boolean }> {
+  playitTunnel(id: string): Promise<{ address: string | null; pending: boolean; needWeb?: boolean }> {
     return this.request(`/api/instances/${id}/playit-tunnel`, { method: "POST", body: "{}" });
   }
 

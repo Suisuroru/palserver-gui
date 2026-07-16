@@ -60,11 +60,18 @@ export function ConnectionCard({
       setPlayitBusy(false);
     }
   };
+  const [needWeb, setNeedWeb] = useState(false);
   const buildTunnel = () =>
     playitAct(async () => {
       const r = await client.playitTunnel(instanceId);
-      if (r.address) refresh(); // externalAddress 已寫入,重抓連線資訊顯示位址
-      else setPlayitErr(t("隧道配置中(通常幾秒鐘),請稍後再按一次。"));
+      if (r.address) {
+        setNeedWeb(false);
+        refresh(); // externalAddress 已寫入,重抓連線資訊顯示位址
+      } else if (r.needWeb) {
+        setNeedWeb(true); // 需到 playit 網頁建隧道;下面的輪詢會自動偵測建好的隧道
+      } else {
+        setPlayitErr(t("隧道配置中(通常幾秒鐘),請稍後再按一次。"));
+      }
     });
   const saveAddr = async () => {
     setSavingAddr(true);
@@ -87,6 +94,23 @@ export function ConnectionCard({
   }, [client, instanceId]);
 
   useEffect(() => refresh(), [refresh]);
+
+  // 等待網頁建立期間:每 3 秒重查,一偵測到符合的 UDP 隧道就自動接上
+  useEffect(() => {
+    if (!needWeb || method !== "playit") return;
+    const timer = setInterval(() => {
+      client
+        .playitTunnel(instanceId)
+        .then((r) => {
+          if (r.address) {
+            setNeedWeb(false);
+            refresh();
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [needWeb, method, client, instanceId, refresh]);
 
   if (!info) return null;
   const port = info.gamePort;
@@ -113,7 +137,7 @@ export function ConnectionCard({
       <div className="grid gap-2 sm:grid-cols-3">
         {(
           [
-            { id: "playit", icon: <FiZap className="size-4" />, name: "playit.gg", tag: t("最簡單:免開埠、朋友什麼都不用裝") },
+            { id: "playit", icon: <FiZap className="size-4" />, name: "playit.gg", tag: t("最簡單:朋友什麼都不用裝") },
             { id: "vpn", icon: <FiShield className="size-4" />, name: "VPN", tag: t("你和朋友裝同一套免費 VPN") },
             { id: "direct", icon: <FiGlobe className="size-4" />, name: t("直連"), tag: t("公開 IP + 路由器開埠(進階)") },
           ] as const
@@ -138,7 +162,7 @@ export function ConnectionCard({
         <Section
           icon={<FiZap className="size-4 text-pal" />}
           title={t("playit.gg — 免費隧道,一鍵搞定")}
-          hint={t("playit 給你一個公開位址,自動轉發到這台伺服器:不用動路由器、不怕 CGNAT,朋友直接輸入位址就能玩。")}
+          hint={t("playit 給你一個公開位址,自動轉發到這台伺服器:不用動路由器,朋友直接輸入位址就能玩。")}
         >
           {/* 一鍵模式:agent 代管 playit(綁定→daemon→隧道→位址,全自動) */}
           <div className="mb-3 rounded-xl border-2 border-pal/40 bg-pal/5 p-3">
@@ -205,6 +229,27 @@ export function ConnectionCard({
                     </button>
                   )}
                 </p>
+                {needWeb && (
+                  <div className="rounded-lg bg-card-soft/70 p-2.5 text-xs">
+                    <p className="font-bold">{t("最後一步:到 playit 網頁建立隧道(帳號安全限制,這步只能在官網做)")}</p>
+                    <ol className="mt-1 flex list-decimal flex-col gap-0.5 pl-4 text-ink-muted">
+                      <li>{t("按下方按鈕開啟 playit 的 Create Tunnel 頁")}</li>
+                      <li>{t("類型選 Custom → 協定 UDP;Local Port 填 {port}", { port })}</li>
+                      <li>{t("按 Create — 回到這裡,位址幾秒內會自動出現")}</li>
+                    </ol>
+                    <a
+                      className={`${btnPrimary} mt-2 inline-flex w-fit items-center gap-1.5 px-3 py-1.5 text-xs`}
+                      href="https://playit.gg/account/tunnels/create"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <FiExternalLink className="size-3.5" /> {t("開啟 Create Tunnel 頁")}
+                    </a>
+                    <p className="mt-1.5 inline-flex items-center gap-1.5 font-bold text-ink-muted">
+                      <FiLoader className="size-3 animate-spin" /> {t("等待隧道建立,將自動偵測…")}
+                    </p>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"

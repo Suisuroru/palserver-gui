@@ -17,9 +17,11 @@ import { AGENT_VERSION, DATA_DIR } from "./env.js";
  * - POST /claim/setup {code,agent_type,version} 輪詢狀態;UserAccepted 後
  *   POST /claim/exchange {code} → {secret_key}
  * - 認證 header:`Authorization: Agent-Key <secret>`
- * - 建隧道:POST /v1/tunnels/create,ports={type:"custom-udp",details:<port>},
- *   origin={type:"agent",data:{agent_id:null,config:{fields:[]}}}
- * - 公開位址:POST /v1/agents/rundata → tunnels[].display_address
+ * - 建隧道:POST /v1/tunnels/create(部署中的 API 是 OpenAPI/Java client 的
+ *   舊版形狀,實測定案):{name?, port_type:"udp", port_count:1,
+ *   origin:{type:"agent",data:{agent_id,local_ip:"127.0.0.1",local_port}}, enabled}
+ * - 公開位址:POST /v1/agents/rundata → tunnels[].assigned_domain + port.from
+ *   (Rust master 分支的 ports/display_address 新形狀「尚未」部署,勿用)
  * - secret 檔:toml `secret_key = "<hex>"`(playitd --secret_path 讀)
  */
 
@@ -121,7 +123,10 @@ async function claimLoop(code: string): Promise<void> {
       if (!claim || claim.code !== code) return; // 被重置/換了一輪
       const state = await playitApi<string>("/claim/setup", {
         code,
-        agent_type: "self-managed",
+        // assignable(官方 playit setup 同款):agent 金鑰跑 daemon+讀 rundata;
+        // 建隧道需先 /login/guest 換帳號 session(agent 金鑰唯讀)。
+        // self-managed 的金鑰未經 daemon 握手前全端點 InvalidAgentKey(實測),不可用。
+        agent_type: "assignable",
         version: PLAYIT_TAG.slice(1), // 官方 agent 版號(claim 介面依此顯示相容性)
       });
       if (state === "UserAccepted") {
@@ -230,17 +235,22 @@ export function initPlayit(): void {
 
 interface RunDataTunnel {
   id: string;
-  display_address: string;
-  port_type: string;
-  port_count: number;
-  tunnel_type?: string | null;
+  name?: string | null;
+  proto: string;
+  port: { from: number; to?: number };
+  local_ip: string;
+  local_port: number;
+  assigned_domain: string;
 }
 
 interface RunData {
   agent_id: string;
   tunnels: RunDataTunnel[];
-  pending: { id: string; status_msg?: string | null }[];
+  pending: { id?: string; name?: string | null; proto?: string }[];
 }
+
+/** 玩家要輸入的位址:assigned_domain:port.from。 */
+const displayAddress = (tun: RunDataTunnel) => `${tun.assigned_domain}:${tun.port.from}`;
 
 function readTunnelMap(): Record<string, string> {
   try {
@@ -260,53 +270,56 @@ async function rundata(secret: string): Promise<RunData> {
 }
 
 /**
- * 確保某實例有一條 UDP 隧道(冪等):已建過就查位址;沒建過就 create 再輪詢。
- * 回傳 display_address;隧道還在配置中回 null(UI 顯示「配置中」再輪詢)。
+ * 為實例解析公開位址(冪等):
+ * 1. 先在 rundata 找「UDP 且 local_port == 遊戲埠」的隧道(含使用者在 playit 網頁建的)→ 直接用
+ * 2. 找不到就嘗試 API create —— 目前部署版對 assignable 金鑰唯讀(401)、
+ *    self-managed 需未知的 description 欄位(400),兩者都會落到 needWeb:true,
+ *    引導使用者到 playit 網頁建一條,回來即被第 1 步自動偵測。
  */
 export async function ensureTunnel(
   instanceId: string,
   gamePort: number,
   instanceName: string,
-): Promise<{ address: string | null; pending: boolean }> {
+): Promise<{ address: string | null; pending: boolean; needWeb: boolean }> {
   const secret = readSecret();
   if (!secret) throw Object.assign(new Error("尚未綁定 playit 帳號"), { statusCode: 409 });
 
   const map = readTunnelMap();
-  let tunnelId = map[instanceId];
-  if (!tunnelId) {
+  const data = await rundata(secret);
+
+  // 1) 既有隧道匹配:記錄過的 id,或 UDP + local_port 對得上(網頁手建的也認得)
+  const match =
+    data.tunnels.find((tun) => tun.id === map[instanceId]) ??
+    data.tunnels.find((tun) => (tun.proto === "udp" || tun.proto === "both") && tun.local_port === gamePort);
+  if (match) {
+    if (map[instanceId] !== match.id) {
+      map[instanceId] = match.id;
+      writeTunnelMap(map);
+    }
+    return { address: displayAddress(match), pending: false, needWeb: false };
+  }
+  if (data.pending.length > 0) return { address: null, pending: true, needWeb: false };
+
+  // 2) 嘗試 API 建立(目前部署版兩種金鑰都不放行;保留在此,上游一開放就自動生效)
+  try {
     const created = await playitApi<{ id: string }>(
-      "/v1/tunnels/create",
+      "/tunnels/create", // 部署版路徑沒有 /v1(實測;/v1 是尚未上線的新 schema)
       {
-        ports: { type: "custom-udp", details: gamePort },
-        origin: { type: "agent", data: { agent_id: null, config: { fields: [] } } },
-        enabled: true,
-        alloc: null,
         name: `palserver-${instanceName}`.slice(0, 60),
-        firewall_id: null,
+        port_type: "udp",
+        port_count: 1,
+        origin: { type: "agent", data: { agent_id: data.agent_id, local_ip: "127.0.0.1", local_port: gamePort } },
+        enabled: true,
       },
       secret,
     );
-    tunnelId = created.id;
-    map[instanceId] = tunnelId;
+    map[instanceId] = created.id;
     writeTunnelMap(map);
+    return { address: null, pending: true, needWeb: false };
+  } catch {
+    // 唯讀金鑰/schema 不符 → 走網頁建立引導
+    return { address: null, pending: false, needWeb: true };
   }
-
-  // 輪詢 rundata 直到隧道從 pending 轉正、拿到 display_address(上限 30 秒)
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const data = await rundata(secret);
-    const live = data.tunnels.find((tun) => tun.id === tunnelId);
-    if (live?.display_address) return { address: live.display_address, pending: false };
-    const pending = data.pending.some((p) => p.id === tunnelId);
-    if (!pending && !live) {
-      // 對照表指到的隧道已不存在(使用者在網頁刪了)→ 清掉,下次重建
-      delete map[instanceId];
-      writeTunnelMap(map);
-      throw new Error("隧道已不存在(可能在 playit 網頁被刪除),請再按一次重新建立");
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  return { address: null, pending: true };
 }
 
 /* ── 對 UI 的狀態總覽 ── */
@@ -331,8 +344,8 @@ export async function playitStatus(): Promise<PlayitStatus> {
         const data = await rundata(secret);
         tunnels = data.tunnels.map((tun) => ({
           id: tun.id,
-          displayAddress: tun.display_address,
-          portType: tun.port_type,
+          displayAddress: displayAddress(tun),
+          portType: tun.proto,
         }));
       }
     } catch {

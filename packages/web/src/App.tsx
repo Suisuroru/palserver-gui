@@ -920,7 +920,7 @@ function CreateDialog({
                 <span className="rounded-full bg-pal/10 px-2 py-0.5 text-[11px] font-bold text-pal">{t("最簡單")}</span>
               </p>
               <p className="mt-0.5 text-xs text-ink-muted">
-                {t("免費隧道:不用動路由器、不怕 CGNAT,朋友什麼都不用裝,輸入位址就能玩。裝一個小程式、五分鐘搞定。")}
+                {t("免費隧道:不用動路由器,朋友什麼都不用裝,輸入位址就能玩。裝一個小程式、五分鐘搞定。")}
               </p>
             </button>
             <button
