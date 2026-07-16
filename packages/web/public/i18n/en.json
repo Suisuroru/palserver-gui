@@ -1350,5 +1350,9 @@
   "帕魯 {n} 隻": "{n} Pals",
   "倉庫 {n} 種": "Storage {n} kinds",
   "計算方式": "How it's calculated",
-  "免費版可設定 1 個時刻;多個時刻(如 00:00, 06:00, 12:00, 18:00)為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。": "The free version supports 1 time of day; multiple times (e.g. 00:00, 06:00, 12:00, 18:00) are a sponsor-only feature — unlock with a sponsor code on the settings page."
+  "免費版可設定 1 個時刻;多個時刻(如 00:00, 06:00, 12:00, 18:00)為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。": "The free version supports 1 time of day; multiple times (e.g. 00:00, 06:00, 12:00, 18:00) are a sponsor-only feature — unlock with a sponsor code on the settings page.",
+  "每天固定多個時間": "Multiple fixed times daily",
+  "每天的重啟時間": "Restart time of day",
+  "新增時刻": "Add time",
+  "移除此時刻": "Remove this time"
 }
