@@ -175,6 +175,10 @@ export function MapTab({
   const [bosses, setBosses] = useState<Boss[]>([]);
   const [showOres, setShowOres] = useState(false);
   const [ores, setOres] = useState<OreData | null>(null);
+  // 世界樹的靜態圖層資料(worldtree-*.json;缺檔=舊資料包,圖層開關自動消失)
+  const [treeLandmarks, setTreeLandmarks] = useState<Landmark[]>([]);
+  const [treeBosses, setTreeBosses] = useState<Boss[]>([]);
+  const [treeOres, setTreeOres] = useState<OreData | null>(null);
   const [guildHint, setGuildHint] = useState(false);
   // 公會詳情點成員 → 地圖跳到該位置。n 是 nonce:同一點連點兩次也要重新觸發。
   const [focus, setFocus] = useState<{ x: number; y: number; n: number } | null>(null);
@@ -204,6 +208,18 @@ export function MapTab({
       .then((r) => (r.ok ? (r.json() as Promise<OreData>) : null))
       .then((d) => setOres(d && Array.isArray(d.spots) ? d : null))
       .catch(() => setOres(null));
+    fetch("/game-data/worldtree-landmarks.json")
+      .then((r) => (r.ok ? (r.json() as Promise<Landmark[]>) : []))
+      .then((d) => setTreeLandmarks(Array.isArray(d) ? d : []))
+      .catch(() => setTreeLandmarks([]));
+    fetch("/game-data/worldtree-bosses.json")
+      .then((r) => (r.ok ? (r.json() as Promise<Boss[]>) : []))
+      .then((d) => setTreeBosses(Array.isArray(d) ? d : []))
+      .catch(() => setTreeBosses([]));
+    fetch("/game-data/worldtree-ores.json")
+      .then((r) => (r.ok ? (r.json() as Promise<OreData>) : null))
+      .then((d) => setTreeOres(d && Array.isArray(d.spots) ? d : null))
+      .catch(() => setTreeOres(null));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -234,6 +250,10 @@ export function MapTab({
     const timer = setInterval(refresh, 5000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  const curLandmarks = world === "tree" ? treeLandmarks : landmarks;
+  const curBosses = world === "tree" ? treeBosses : bosses;
+  const curOres = world === "tree" ? treeOres : ores;
 
   const baseCount = guilds.reduce((s, g) => s + g.bases.length, 0);
   const offlineCount = pdPlayers.filter(
@@ -284,15 +304,13 @@ export function MapTab({
               <FiMoon className="size-4" /> {t("離線玩家")}
             </button>
           )}
-          {world === "main" && (
-            <button
-              className={`${btnGhost} inline-flex items-center gap-1.5 ${showBases ? "border-pal text-pal" : "opacity-60"}`}
-              onClick={() => setShowBases((v) => !v)}
-            >
-              <FiHome className="size-4" /> {t("公會據點")}
-            </button>
-          )}
-          {world === "main" && landmarks.length > 0 &&
+          <button
+            className={`${btnGhost} inline-flex items-center gap-1.5 ${showBases ? "border-pal text-pal" : "opacity-60"}`}
+            onClick={() => setShowBases((v) => !v)}
+          >
+            <FiHome className="size-4" /> {t("公會據點")}
+          </button>
+          {curLandmarks.length > 0 &&
             (guildsUnlocked ? (
               <button
                 className={`${btnGhost} inline-flex items-center gap-1.5 ${showLandmarks ? "border-pal text-pal" : "opacity-60"}`}
@@ -311,7 +329,7 @@ export function MapTab({
                 <FiStar className="size-3.5 text-pal" />
               </button>
             ))}
-          {world === "main" && bosses.length > 0 &&
+          {curBosses.length > 0 &&
             (guildsUnlocked ? (
               <button
                 className={`${btnGhost} inline-flex items-center gap-1.5 ${showBosses ? "border-pal text-pal" : "opacity-60"}`}
@@ -330,7 +348,7 @@ export function MapTab({
                 <FiStar className="size-3.5 text-pal" />
               </button>
             ))}
-          {world === "main" && ores && ores.spots.length > 0 &&
+          {curOres && curOres.spots.length > 0 &&
             (guildsUnlocked ? (
               <button
                 className={`${btnGhost} inline-flex items-center gap-1.5 ${showOres ? "border-pal text-pal" : "opacity-60"}`}
@@ -384,9 +402,9 @@ export function MapTab({
           players={live.players}
           guilds={guilds}
           pdPlayers={pdPlayers}
-          landmarks={landmarks}
-          bosses={bosses}
-          ores={ores}
+          landmarks={curLandmarks}
+          bosses={curBosses}
+          ores={curOres}
           focus={focus}
           lang={lang}
           showPlayers={showPlayers}
@@ -874,7 +892,7 @@ function PlayerMap({
     const renderer = oresRendererRef.current;
     if (!group || !renderer) return;
     group.clearLayers();
-    if (!showOres || !ores || world !== "main") return;
+    if (!showOres || !ores) return;
     for (const s of ores.spots) {
       const ty = ores.types[s.t];
       if (!ty) continue;
@@ -948,7 +966,7 @@ function PlayerMap({
 
     // Static landmarks (fast travel / towers / dungeons) as the bottom layer,
     // each with its own game compass icon.
-    if (showLandmarks && world === "main") {
+    if (showLandmarks) {
       for (const lm of landmarks) {
         const style = LANDMARK_STYLE[lm.type];
         if (!style) continue;
@@ -973,7 +991,7 @@ function PlayerMap({
     // Field bosses (Alpha Pals): a distinct red-framed Pal portrait with a
     // crown badge + level — deliberately unlike the round guild-ringed player
     // avatars (no ping) and separate from the landmark layer.
-    if (showBosses && world === "main") {
+    if (showBosses) {
       const BS = 36;
       for (const b of bosses) {
         const iconUrl = b.icon ? palIconUrl(b.icon) : null;
