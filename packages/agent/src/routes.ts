@@ -1481,7 +1481,7 @@ export function registerRoutes(
     };
   });
 
-  app.put("/api/instances/:id/restart-policy", async (req) => {
+  app.put("/api/instances/:id/restart-policy", async (req, reply) => {
     const rec = getOr404((req.params as { id: string }).id);
     const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "時間格式須為 HH:MM");
     const policy = z
@@ -1512,6 +1512,16 @@ export function registerRoutes(
           .optional(),
       })
       .parse(req.body);
+    // 「每天固定時間」為贊助者功能:只擋「新啟用」—— 閘門上線前就在用 daily
+    // 的既有設定不破壞(軟性閘門,見 shared/features.ts 的定位說明)。
+    const prev = supervisor.readPolicy(rec.id);
+    const wantsDaily = policy.scheduled.enabled && policy.scheduled.mode === "daily";
+    const hadDaily = prev.scheduled.enabled && prev.scheduled.mode === "daily";
+    if (wantsDaily && !hadDaily && !featureEnabled("daily-restart")) {
+      return reply
+        .code(403)
+        .send({ error: "每天固定時間重啟為贊助者專屬功能,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
     return supervisor.writePolicy(rec.id, policy);
   });
 

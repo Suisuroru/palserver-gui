@@ -5,7 +5,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULT_RESTART_POLICY } from "@palserver/shared";
-import { RestartSupervisor } from "./supervisor.js";
+import { RestartSupervisor, dailyFireKey } from "./supervisor.js";
 import { newestPalDefenderLogLines } from "./native.js";
 import type { ServerDriver } from "./driver.js";
 import type { InstanceRecord, InstanceStore } from "./store.js";
@@ -192,6 +192,29 @@ test("scheduled restart respects a manual stop mid-wait", { timeout: 60_000 }, a
   const finalState = JSON.parse(fs.readFileSync(path.join(tmp, "restart-state.json"), "utf8")) as { wasRunning: boolean };
   assert.equal(finalState.wasRunning, false, "伺服器必須維持停止");
   fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+/** daily 模式「公告先行、準點重啟」:觸發鍵以 now+announceSeconds 對表,
+ *  使用者設 00:00 且公告 300 秒,23:55 就要開跑;跨日以目標日為鍵。 */
+test("dailyFireKey leads by announceSeconds and lands on the configured time", () => {
+  const p = (times: string[], announce: number) => ({ announceSeconds: announce, scheduled: { dailyTimes: times } });
+  // 公告 300 秒:23:55 觸發、目標 00:00(跨日,鍵用隔天日期)
+  const nov1_2355 = new Date(2026, 10, 1, 23, 55, 10);
+  const key = dailyFireKey(p(["00:00"], 300), nov1_2355);
+  assert.ok(key !== null, "23:55 就必須觸發(300 秒後正是 00:00)");
+  assert.ok(key!.startsWith(new Date(2026, 10, 2).toDateString()), "跨日觸發的鍵必須掛在目標日(11/2)");
+  // 同一分鐘內第二個 tick:鍵相同(由 lastDailyFire 防重複觸發)
+  assert.equal(key, dailyFireKey(p(["00:00"], 300), new Date(2026, 10, 1, 23, 55, 40)));
+  // 沒到時間就不觸發
+  assert.equal(dailyFireKey(p(["00:00"], 300), new Date(2026, 10, 1, 23, 54, 0)), null);
+  assert.equal(dailyFireKey(p(["00:00"], 300), new Date(2026, 10, 1, 23, 56, 0)), null);
+  // 公告 0 秒:準點觸發
+  assert.ok(dailyFireKey(p(["06:00"], 0), new Date(2026, 10, 1, 6, 0, 5)) !== null);
+  // 多時刻:每個都能觸發
+  const four = ["00:00", "06:00", "12:00", "18:00"];
+  assert.ok(dailyFireKey(p(four, 0), new Date(2026, 10, 1, 12, 0, 0)) !== null);
+  assert.ok(dailyFireKey(p(four, 0), new Date(2026, 10, 1, 18, 0, 29)) !== null);
+  assert.equal(dailyFireKey(p(four, 0), new Date(2026, 10, 1, 3, 0, 0)), null);
 });
 
 /** 「最後日誌」提示只能引用本次啟動之後寫入的 PalDefender 日誌 ——

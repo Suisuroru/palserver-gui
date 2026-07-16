@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { FiAlertTriangle, FiCheck, FiClock, FiCpu, FiRefreshCw, FiX } from "react-icons/fi";
+import { FiAlertTriangle, FiCheck, FiClock, FiCpu, FiRefreshCw, FiStar, FiX } from "react-icons/fi";
+import { hasFeature } from "@palserver/shared";
 import type { RestartPolicy, RestartStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { t, useI18n } from "./i18n";
@@ -56,6 +57,11 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [entitled, setEntitled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    client.license().then((l) => setEntitled(hasFeature("daily-restart", l))).catch(() => setEntitled(false));
+  }, [client]);
 
   const refresh = useCallback(async () => {
     try {
@@ -138,20 +144,40 @@ export function RestartCard({ client, instanceId }: { client: AgentClient; insta
         onToggle={(enabled) => patch({ scheduled: { ...draft.scheduled, enabled } })}
       >
         <div className="flex flex-wrap gap-2">
-          {(["interval", "daily"] as const).map((mode) => (
-            <button
-              key={mode}
-              className={
-                draft.scheduled.mode === mode
-                  ? "rounded-full bg-pal px-4 py-1.5 text-[13px] font-extrabold text-white"
-                  : "rounded-full border-2 border-line bg-card-soft px-4 py-1.5 text-[13px] font-extrabold text-ink-muted transition hover:border-pal"
-              }
-              onClick={() => patch({ scheduled: { ...draft.scheduled, mode } })}
-            >
-              {mode === "interval" ? t("每隔一段時間") : t("每天固定時間")}
-            </button>
-          ))}
+          {(["interval", "daily"] as const).map((mode) => {
+            // 「每天固定時間」為贊助者限定;閘門上線前就在用 daily 的舊設定不鎖(grandfather)。
+            const grandfathered = status.policy.scheduled.enabled && status.policy.scheduled.mode === "daily";
+            const locked = mode === "daily" && entitled !== true && !grandfathered;
+            return (
+              <button
+                key={mode}
+                className={
+                  (draft.scheduled.mode === mode
+                    ? "rounded-full bg-pal px-4 py-1.5 text-[13px] font-extrabold text-white"
+                    : "rounded-full border-2 border-line bg-card-soft px-4 py-1.5 text-[13px] font-extrabold text-ink-muted transition hover:border-pal") +
+                  (locked ? " opacity-50" : "")
+                }
+                onClick={() => !locked && patch({ scheduled: { ...draft.scheduled, mode } })}
+                disabled={locked}
+                title={locked ? t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。") : undefined}
+              >
+                {mode === "interval" ? (
+                  t("每隔一段時間")
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <FiStar className={draft.scheduled.mode === mode ? "size-3.5" : "size-3.5 text-pal"} />
+                    {t("每天固定時間")}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
+        {entitled === false && !(status.policy.scheduled.enabled && status.policy.scheduled.mode === "daily") && (
+          <p className="text-[12px] leading-relaxed text-ink-muted">
+            {t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+          </p>
+        )}
         {draft.scheduled.mode === "interval" ? (
           <Field label={t("每隔幾分鐘重啟")}>
             <input

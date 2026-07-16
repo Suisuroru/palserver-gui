@@ -36,6 +36,20 @@ const BOOT_GRACE_MS = 120_000;
  * way out, so this needs headroom beyond the announced waittime. */
 const SHUTDOWN_EXIT_TIMEOUT_MS = 60_000;
 
+/** daily 模式的觸發鍵:以「預計實際重啟的時刻」(now + 公告秒數)對表 ——
+ * 公告先行,重啟正落在使用者設定的 HH:MM,而不是晚 announceSeconds 才開始。
+ * 回傳 null = 現在(含前導)不落在任何排定時刻。exported for tests. */
+export function dailyFireKey(
+  policy: Pick<RestartPolicy, "announceSeconds"> & { scheduled: Pick<RestartPolicy["scheduled"], "dailyTimes"> },
+  now: Date,
+): string | null {
+  const lead = Math.min(Math.max(policy.announceSeconds, 0), MAX_ANNOUNCE_SECONDS);
+  const target = new Date(now.getTime() + lead * 1000);
+  const hhmm = `${String(target.getHours()).padStart(2, "0")}:${String(target.getMinutes()).padStart(2, "0")}`;
+  if (!policy.scheduled.dailyTimes.includes(hhmm)) return null;
+  return `${target.toDateString()} ${hhmm}`;
+}
+
 interface SupervisorState {
   /** we last observed it running, so an "exited" now means it crashed */
   wasRunning: boolean;
@@ -138,10 +152,8 @@ export class RestartSupervisor {
 
   /** Fixed times of day: fire once when the clock reaches HH:MM. */
   private dailyDue(policy: RestartPolicy, state: SupervisorState, now: Date): boolean {
-    const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    if (!policy.scheduled.dailyTimes.includes(hhmm)) return false;
-    const key = `${now.toDateString()} ${hhmm}`;
-    return state.lastDailyFire !== key;
+    const key = dailyFireKey(policy, now);
+    return key !== null && state.lastDailyFire !== key;
   }
 
   private scheduledDue(policy: RestartPolicy, state: SupervisorState, now: Date): boolean {
@@ -206,8 +218,7 @@ export class RestartSupervisor {
 
     if (this.scheduledDue(policy, state, now)) {
       if (policy.scheduled.mode === "daily") {
-        const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-        state.lastDailyFire = `${now.toDateString()} ${hhmm}`;
+        state.lastDailyFire = dailyFireKey(policy, now) ?? state.lastDailyFire;
       }
       await this.restart(rec, ctx, driver, policy, state, "scheduled", "已達排定的重啟時間");
       return;
@@ -330,6 +341,9 @@ export class RestartSupervisor {
     detail: string,
   ): Promise<void> {
     this.busy.add(rec.id);
+    // interval 模式的下一輪從「本輪觸發」起算,而不是完成時 —— 否則每輪都往後
+    // 漂移 announceSeconds + 關機等待(使用者回報 360 分鐘排程會越跑越晚)。
+    const firedAt = new Date().toISOString();
     try {
       // 遊戲內公告用 GUI 儲存設定時寫入的在地化模板;沒存過(舊設定)退回內建繁中。
       // detail 留給重啟紀錄/log(內含動態數字,不進遊戲聊天室)。
@@ -436,7 +450,7 @@ export class RestartSupervisor {
       const fresh = this.readState(rec.id);
       fresh.lastDailyFire = state.lastDailyFire; // set by check() at fire time
       fresh.recentRestarts = [...this.recentWithinHour(fresh.recentRestarts), now];
-      fresh.lastScheduledAt = now;
+      fresh.lastScheduledAt = firedAt;
       fresh.wasRunning = true;
       fresh.lastStartAt = now;
       this.record(rec.id, fresh, { at: now, reason, ok: true, detail });
