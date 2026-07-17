@@ -94,7 +94,9 @@ export function GuildsTab({
         <p className="text-xs text-ink-muted">
           {generatedAt
             ? t("資料來自存檔掃描(掃描於 {when})。", { when: new Date(generatedAt).toLocaleString() })
-            : t("尚未掃描過存檔。點「從存檔刷新」建立快照。")}
+            : note
+              ? "" // 無法取得快照時只顯示下方的提示框,不重複「尚未掃描」
+              : t("尚未掃描過存檔。點「從存檔刷新」建立快照。")}
         </p>
         {canScan && (
           <button
@@ -109,7 +111,7 @@ export function GuildsTab({
       </div>
 
       {error && <p className={errorCls}>{error}</p>}
-      {note && !scanning && <EmptyState compact>{note}</EmptyState>}
+      {note && !scanning && <EmptyState icon={<FiHome />}>{note}</EmptyState>}
 
       {!note && !scanning && sorted.length === 0 && (
         <EmptyState icon={<FiHome />}>

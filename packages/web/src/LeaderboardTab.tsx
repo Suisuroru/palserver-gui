@@ -93,7 +93,9 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
         <p className="text-xs text-ink-muted">
           {latest
             ? t("資料來自存檔掃描(掃描於 {when})。", { when: new Date(latest.scannedAt).toLocaleString() })
-            : t("尚未掃描過存檔。點「從存檔刷新」建立快照。")}
+            : note
+              ? "" // 無法取得快照時只顯示下方的提示框,不重複「尚未掃描」
+              : t("尚未掃描過存檔。點「從存檔刷新」建立快照。")}
         </p>
         {canScan && !locked && (
           <div className="flex flex-wrap items-center gap-2">
@@ -126,7 +128,7 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
       </div>
 
       {error && <p className={errorCls}>{error}</p>}
-      {note && !scanning && <EmptyState compact>{note}</EmptyState>}
+      {note && !scanning && <EmptyState icon={<FiAward />}>{note}</EmptyState>}
 
       {locked && (
         <div className="inline-flex items-center gap-2 rounded-cute border-2 border-sun/40 bg-sun/10 px-3 py-2 text-xs font-bold text-sun">
