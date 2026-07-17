@@ -263,7 +263,11 @@ export async function provisionPdToken(
  * 欄位由它自己補預設值。伺服器沒在跑,不需要(也無從)reloadcfg。 */
 export function preprovisionPdRest(rec: InstanceRecord, ctx: DriverContext): void {
   const win64 = path.join(serverRoot(rec, ctx), "Pal", "Binaries", "Win64");
-  const dir = pdDir(rec, ctx) ?? path.join(win64, "PalDefender");
+  // 沿用既有目錄名(palguard 舊安裝);沒有就用預設 PalDefender。此流程是 native
+  // 強化版建立(首次啟動前),host fs 同步掃描即可 —— 等價於合併前 main 的 pdDir()
+  // (該函式在 #36 重構成 runtime-aware 的 async getPdDir,不適用這個同步情境)。
+  const existing = PD_DIR_NAMES.map((n) => path.join(win64, n)).find((p) => fs.existsSync(p));
+  const dir = existing ?? path.join(win64, "PalDefender");
   const restDir = path.join(dir, "RESTAPI");
   fs.mkdirSync(restDir, { recursive: true });
 
