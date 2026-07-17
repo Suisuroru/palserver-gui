@@ -10,9 +10,11 @@ import {
   type PdOptionKey,
   type PdOptionMeta,
   type PdRestStatus,
+  type ModsStatus,
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { FileEditor } from "./FileManager";
+import { ModInstallCard } from "./ModInstallCard";
 import { RestStatusCard } from "./RestStatusCard";
 import { t, useI18n } from "./i18n";
 import { EmptyState, btn, btnGhost, card, errorCls, inputCls } from "./ui";
@@ -47,15 +49,20 @@ export function PalDefenderTab({
   const [saving, setSaving] = useState(false);
   const [editingRaw, setEditingRaw] = useState<string | null>(null);
   const [rest, setRest] = useState<PdRestStatus | null>(null);
+  // 版本管理(從「模組」分頁移來):更新到最新版 / 安裝測試版
+  const [mods, setMods] = useState<ModsStatus | null>(null);
+  const [verBusy, setVerBusy] = useState<"stable" | "beta" | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [next, restStatus] = await Promise.all([
+      const [next, restStatus, modStatus] = await Promise.all([
         client.palDefenderConfig(instanceId),
         client.palDefenderRest(instanceId).catch(() => null),
+        client.mods(instanceId).catch(() => null),
       ]);
       setStatus(next);
       setRest(restStatus);
+      setMods(modStatus);
       setDraft(Object.fromEntries(KEYS.map((k) => [k, effective(next.values, k)])));
       setMotdDraft(next.motd.join("\n"));
       setError(null);
@@ -79,11 +86,24 @@ export function PalDefenderTab({
 
   if (!status) return <p className="text-ink-muted">{error ?? t("載入中…")}</p>;
 
-  if (!status.supported) {
-    return (
-      <EmptyState icon={<FiShield />}>{status.reason}</EmptyState>
-    );
-  }
+
+  const installVersion = async (channel: "stable" | "beta") => {
+    if (channel === "beta" && !confirm(t("測試版(Beta)可能不穩定,但含較新的功能(例如玩家細節 API)。\n\n確定要安裝最新測試版嗎?"))) {
+      return;
+    }
+    setVerBusy(channel);
+    setError(null);
+    try {
+      await client.installMod(instanceId, "paldefender", channel);
+      setNotice(t("安裝或更新後,重啟伺服器才會生效。"));
+      setTimeout(() => setNotice(null), 3500);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerBusy(null);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -106,12 +126,39 @@ export function PalDefenderTab({
     grouped.set(label, [...(grouped.get(label) ?? []), key]);
   }
 
+  const versionCard = (
+    <ModInstallCard
+      title={t("PalDefender 版本")}
+      installed={!!mods?.paldefender.installed}
+      version={mods?.paldefender.version}
+      running={running}
+      busy={verBusy !== null}
+      busyLabel={t("安裝中…")}
+      onInstall={() => void installVersion("stable")}
+      onInstallBeta={() => void installVersion("beta")}
+      note={<>{t("「玩家細節(查看帕魯/背包)」需要 v1.8.0 以上的測試版才支援。")}{t("安裝或更新後,重啟伺服器才會生效。")}</>}
+    />
+  );
+
+  if (!status.supported) {
+    return (
+      <div className="flex flex-col gap-4">
+        {error && <p className={errorCls}>{error}</p>}
+        {versionCard}
+        <EmptyState icon={<FiShield />}>{status.reason}</EmptyState>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className={errorCls}>{error}</p>}
       {notice && (
         <p className="rounded-xl bg-grass/10 px-3 py-2 text-[13px] font-bold text-grass">{notice}</p>
       )}
+
+      {/* 版本管理(從「模組」分頁移來):放在編輯 Config.json 的標題卡上面 */}
+      {versionCard}
 
       <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
         <p className="inline-flex items-center gap-2 text-sm font-extrabold">
@@ -127,6 +174,7 @@ export function PalDefenderTab({
         </button>
       </div>
       {!status.exists && status.reason && <p className="text-[13px] text-sun">{status.reason}</p>}
+
 
       <RestStatusCard
         rest={rest}

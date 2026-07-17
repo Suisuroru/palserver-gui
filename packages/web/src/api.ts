@@ -91,6 +91,32 @@ export interface AgentSettingsPatch {
   autoOpenBrowser?: boolean;
 }
 
+/** 配置評估健檢(對應 agent 的 system-review.ts;rating 由前端翻成文字與顏色)。 */
+export type ReviewRating = "good" | "ok" | "poor";
+export interface SystemReview {
+  specs: {
+    platform: string;
+    arch: string;
+    cpuModel: string;
+    cpuCores: number;
+    cpuSpeedMHz: number;
+    ramTotalBytes: number;
+    ramFreeBytes: number;
+    diskTotalBytes: number;
+    diskFreeBytes: number;
+    diskWriteMBps: number;
+    netAvgMs: number | null;
+    netMinMs: number | null;
+    netJitterMs: number | null;
+  };
+  ram: { rating: ReviewRating; score: number };
+  cpu: { rating: ReviewRating; score: number };
+  disk: { rating: ReviewRating; score: number };
+  network: { rating: ReviewRating; score: number };
+  overall: number;
+  generatedAt: string;
+}
+
 export interface ConfigSnapshotResult {
   supported: boolean;
   reason?: string;
@@ -243,6 +269,10 @@ export class AgentClient {
   }
   saveAgentSettings(patch: AgentSettingsPatch): Promise<{ ok: boolean }> {
     return this.request("/api/settings", { method: "PUT", body: JSON.stringify(patch) });
+  }
+  /** 配置評估健檢(進階顯示/贊助者):主機硬體+網路實測與評分。會實跑磁碟/網路測試,約 2-5 秒。 */
+  systemReview(): Promise<SystemReview> {
+    return this.request("/api/system-review");
   }
   /** 重啟 agent 以套用系統設定;restarting=false 表示開發模式,需手動重啟。 */
   restartAgent(): Promise<{ restarting: boolean }> {

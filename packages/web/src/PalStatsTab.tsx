@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiAlertTriangle, FiDownload, FiEdit2, FiList, FiRefreshCw, FiStar, FiTrash2 } from "react-icons/fi";
+import { FiAlertTriangle, FiEdit2, FiList, FiStar, FiTrash2 } from "react-icons/fi";
 import { GiSheep } from "react-icons/gi";
 import {
   hasFeature,
@@ -17,6 +17,7 @@ import {
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { EntityPicker } from "./EntityPicker";
+import { ModInstallCard } from "./ModInstallCard";
 import { useGameData, palIconUrl, displayName } from "./gameData";
 import { usePalStatsDefaults, resolveRowCase } from "./palStatsDefaults";
 import { t, useI18n } from "./i18n";
@@ -45,7 +46,16 @@ const emptyDraft = () =>
  * DT_PalMonsterParameter 的物種基礎值(HP / 攻防 / 移速 / 捕獲率等)。
  * 未解鎖時整組表單照樣顯示,但變灰、不可操作,並提示去設定頁輸入識別碼。
  */
-export function PalStatsTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
+export function PalStatsTab({
+  client,
+  instanceId,
+  running,
+}: {
+  client: AgentClient;
+  instanceId: string;
+  /** 伺服器運行中 + auto-reload 已開 → 儲存即熱重載,通知文案不同。 */
+  running?: boolean;
+}) {
   useI18n();
   const gameData = useGameData();
   // 原版數值(placeholder/大小寫校正);檔案缺失時為空物件,一切照舊
@@ -178,7 +188,11 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
       ) as PalStatValues;
       const next = await client.updatePalStats(instanceId, row, values);
       setStatus(next);
-      setNotice(t("已儲存,伺服器重啟後生效"));
+      setNotice(
+        running && next.schema.autoReload
+          ? t("已儲存,PalSchema 會自動熱重載 — 對新生成/新遭遇的帕魯生效;若沒生效再重啟伺服器。")
+          : t("已儲存,伺服器重啟後生效"),
+      );
       setTimeout(() => setNotice(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -200,7 +214,11 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
     try {
       const next = await client.clearPalStats(instanceId);
       setStatus(next);
-      setNotice(t("已刪除所有物種數值調整,重啟伺服器後生效"));
+      setNotice(
+        running && next.schema.autoReload
+          ? t("已刪除所有物種數值調整,PalSchema 會自動熱重載;若沒生效再重啟伺服器。")
+          : t("已刪除所有物種數值調整,重啟伺服器後生效"),
+      );
       setTimeout(() => setNotice(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -220,69 +238,45 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
         <SponsorLockNotice>{t("這是贊助者先行版功能。到「設定 → 贊助者識別碼」輸入識別碼即可使用。")}</SponsorLockNotice>
       )}
 
-      <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
-        <p className="inline-flex items-center gap-2 text-sm font-extrabold">
-          <GiSheep className="size-4 text-pal" /> {t("帕魯物種數值編輯器")}
-          <span className="inline-flex items-center gap-1 rounded-full bg-pal/10 px-2 py-0.5 text-xs font-bold text-pal">
-            <FiStar className="size-3" /> {t("贊助者")}
-          </span>
-        </p>
-        {status.schema.installed && (
-          <div className={`flex flex-wrap items-center gap-2 ${locked ? "pointer-events-none opacity-55" : ""}`}>
-            {status.schema.version && (
-              <span className="rounded-full bg-card-soft px-2.5 py-1 font-mono text-xs text-ink-muted">
-                PalSchema {status.schema.version}
-              </span>
-            )}
-            <button
-              className={`${btnGhost} inline-flex items-center gap-1.5`}
-              onClick={install}
-              disabled={installing}
-              title={t("重新下載最新版 PalSchema 與相依的 UE4SS(遊戲改版後模組失效時先做這個)")}
-            >
-              <FiRefreshCw className={`size-4 ${installing ? "animate-spin" : ""}`} />
-              {installing ? t("更新中…") : t("更新 PalSchema")}
-            </button>
-            <button
-              className={`${btnGhost} inline-flex items-center gap-1.5 text-berry hover:border-berry`}
-              onClick={uninstall}
-              disabled={installing}
-            >
-              <FiTrash2 className="size-4" /> {t("解除安裝 PalSchema")}
-            </button>
-          </div>
-        )}
+      <div className={locked ? "pointer-events-none opacity-55" : undefined}>
+        <ModInstallCard
+          title={t("帕魯物種數值編輯器")}
+          titleExtra={
+            <span className="inline-flex items-center gap-1 rounded-full bg-pal/10 px-2 py-0.5 text-xs font-bold text-pal">
+              <FiStar className="size-3" /> {t("贊助者")}
+            </span>
+          }
+          desc={t("透過社群開發的 PalSchema mod 修改物種基礎數值(HP / 近戰攻擊 / 遠程攻擊 / 防禦 / 移速 / 捕獲率等),改動寫在 DataTable patch,不動存檔本身。")}
+          installed={status.schema.installed}
+          version={status.schema.version ? `PalSchema ${status.schema.version}` : null}
+          running={false}
+          busy={installing}
+          busyLabel={status.schema.installed ? t("更新中…") : t("安裝中…")}
+          onInstall={install}
+          installLabel={t("安裝 PalSchema")}
+          updateLabel={t("更新 PalSchema")}
+          installTitle={t("重新下載最新版 PalSchema 與相依的 UE4SS(遊戲改版後模組失效時先做這個)")}
+          onUninstall={uninstall}
+        >
+          {!status.schema.installed && (
+            <div className="mt-2">
+              <DismissibleWarning id="warn-palstats-risk">
+                <span className="inline-flex items-start gap-2">
+                  <FiAlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    {t(
+                      "風險提示:PalSchema 為社群 mod、僅支援 Windows(native)伺服器,且依賴特定版本的 UE4SS(改版後可能暫時失效);安裝或調整數值前建議先備份存檔。",
+                    )}
+                  </span>
+                </span>
+              </DismissibleWarning>
+              {status.reason && <p className="mt-2 text-[13px] text-sun">{status.reason}</p>}
+            </div>
+          )}
+        </ModInstallCard>
       </div>
 
-      {!status.schema.installed ? (
-        <div className={`${card} flex flex-col gap-3`}>
-          <p className="text-sm text-ink-muted">
-            {t(
-              "透過社群開發的 PalSchema mod 修改物種基礎數值(HP / 近戰攻擊 / 遠程攻擊 / 防禦 / 移速 / 捕獲率等),改動寫在 DataTable patch,不動存檔本身。",
-            )}
-          </p>
-          <DismissibleWarning id="warn-palstats-risk">
-            <span className="inline-flex items-start gap-2">
-              <FiAlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <span>
-                {t(
-                  "風險提示:PalSchema 為社群 mod、僅支援 Windows(native)伺服器,且依賴特定版本的 UE4SS(改版後可能暫時失效);安裝或調整數值前建議先備份存檔。",
-                )}
-              </span>
-            </span>
-          </DismissibleWarning>
-          {status.reason && <p className="text-[13px] text-sun">{status.reason}</p>}
-          <div className={locked ? "pointer-events-none w-fit opacity-55" : "w-fit"}>
-            <button
-              className={`${btn} inline-flex items-center gap-1.5`}
-              onClick={install}
-              disabled={locked || installing}
-            >
-              <FiDownload className="size-4" /> {installing ? t("安裝中…") : t("安裝 PalSchema")}
-            </button>
-          </div>
-        </div>
-      ) : (
+      {!status.schema.installed ? null : (
         <>
           <div className={locked ? "pointer-events-none flex flex-col gap-4 opacity-55" : "flex flex-col gap-4"}>
           <div className={`${card} flex flex-col gap-3`}>
@@ -339,9 +333,13 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
               </p>
             )}
             <p className="text-xs text-ink-muted">
-              {t(
-                "改的是物種基礎值,會套用到該物種所有個體;首領(Boss_)/ 高塔首領(GYM_)是獨立資料列,只影響對應版本;儲存後要重啟伺服器,才會對新遭遇的帕魯生效。留空的欄位不會覆寫既有值。",
-              )}
+              {status.schema.autoReload
+                ? t(
+                    "改的是物種基礎值,會套用到該物種所有個體;首領(Boss_)/ 高塔首領(GYM_)是獨立資料列,只影響對應版本;已開啟熱重載:儲存後自動套用到新生成/新遭遇的帕魯(若沒生效再重啟)。留空的欄位不會覆寫既有值。",
+                  )
+                : t(
+                    "改的是物種基礎值,會套用到該物種所有個體;首領(Boss_)/ 高塔首領(GYM_)是獨立資料列,只影響對應版本;儲存後要重啟伺服器,才會對新遭遇的帕魯生效。留空的欄位不會覆寫既有值。",
+                  )}
             </p>
           </div>
 

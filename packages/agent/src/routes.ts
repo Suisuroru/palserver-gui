@@ -33,6 +33,7 @@ import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
+import { collectSpecs, reviewSpecs } from "./system-review.js";
 import { restartSelf } from "./self-update.js";
 import {
   type AuthContext,
@@ -418,6 +419,15 @@ export function registerRoutes(
       .parse(req.body);
     saveSettings(b);
     return { ok: true };
+  });
+
+  // ── 配置評估健檢(進階顯示/贊助者):主機硬體+網路實測與評分 ──
+  app.get("/api/system-review", async (_req, reply) => {
+    if (!featureEnabled("dashboard-stats")) {
+      return reply.code(403).send({ error: "配置評估健檢為贊助者專屬功能,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const specs = await collectSpecs();
+    return reviewSpecs(specs);
   });
   // 套用系統設定:重啟自己(免安裝執行檔才會真的重啟;開發模式回 restarting:false)。
   app.post("/api/restart", async () => {

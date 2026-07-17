@@ -117,8 +117,9 @@ export function InstanceDetailPage({
   useEffect(() => checkPalDefender(), [checkPalDefender]);
   // 移除 PalDefender 時人正停在該分頁 → 退回總覽(帕魯數值不依賴 PalDefender,不在此列)
   useEffect(() => {
-    if (tab === "paldefender" && !palDefender) setTab("overview");
-  }, [tab, palDefender]);
+    // 強化(modded)實例例外:autoEnhance 會裝 PalDefender,分頁常駐(裝好前顯示原因)
+    if (tab === "paldefender" && !palDefender && detail?.flavor !== "modded") setTab("overview");
+  }, [tab, palDefender, detail]);
 
   useEffect(() => {
     void refresh();
@@ -361,7 +362,7 @@ export function InstanceDetailPage({
         const orderedTabs = tabOrder
           .map((id) => TABS.find((tb) => tb.id === id))
           .filter((tb): tb is (typeof TABS)[number] => !!tb)
-          .filter((tb) => tb.id !== "paldefender" || palDefender)
+          .filter((tb) => tb.id !== "paldefender" || palDefender || detail.flavor === "modded")
           .filter((tb) => tb.id !== "palstats" || SHOW_SPONSOR_FEATURES);
         const visibleTabs = orderedTabs.filter((tb) => LOCKED_TABS.includes(tb.id) || !hiddenTabs.includes(tb.id));
         const manageable = orderedTabs.filter((tb) => !LOCKED_TABS.includes(tb.id));
@@ -435,9 +436,6 @@ export function InstanceDetailPage({
                       </button>
                     );
                   })}
-                  <p className="border-t-2 border-line px-2 pb-0.5 pt-1.5 text-[11px] text-ink-muted">
-                    {translate("點一下切換顯示;分頁標籤可直接拖曳排序。")}
-                  </p>
                 </div>
               )}
             </div>
@@ -493,17 +491,12 @@ export function InstanceDetailPage({
           instanceId={detail.id}
           running={detail.status === "running"}
           onModsChanged={checkPalDefender}
-          onOpenPalDefender={() => {
-            setPalDefender(true); // 按鈕只在已安裝時出現;搶在重查完成前放行 gating
-            setHiddenTabs(hiddenTabs.filter((id) => id !== "paldefender"));
-            setTab("paldefender");
-          }}
         />
       )}
       {tab === "paldefender" && (
         <PalDefenderTab client={client} instanceId={detail.id} running={detail.status === "running"} />
       )}
-      {tab === "palstats" && <PalStatsTab client={client} instanceId={detail.id} />}
+      {tab === "palstats" && <PalStatsTab client={client} instanceId={detail.id} running={detail.status === "running"} />}
       {tab === "saves" && (
         <SavesTab client={client} instanceId={detail.id} running={detail.status === "running"} />
       )}
