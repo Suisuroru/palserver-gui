@@ -18,6 +18,7 @@ import {
 import type { AgentClient } from "./api";
 import { EntityPicker } from "./EntityPicker";
 import { useGameData, palIconUrl, displayName } from "./gameData";
+import { usePalStatsDefaults, resolveRowCase } from "./palStatsDefaults";
 import { t, useI18n } from "./i18n";
 import { SponsorLockNotice, EmptyState, btn, btnGhost, card, errorCls, inputCls, DismissibleWarning } from "./ui";
 
@@ -47,6 +48,8 @@ const emptyDraft = () =>
 export function PalStatsTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   useI18n();
   const gameData = useGameData();
+  // 原版數值(placeholder/大小寫校正);檔案缺失時為空物件,一切照舊
+  const defaults = usePalStatsDefaults();
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [status, setStatus] = useState<PalStatsStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +82,10 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
   }, [refresh]);
 
   const locked = entitled === false;
-  const row = palId.trim() ? palRowName(palId.trim(), variant) : "";
+  const row = palId.trim() ? resolveRowCase(defaults, palRowName(palId.trim(), variant)) : "";
+  // 該 row 的原版數值(有資料檔才有;給 placeholder 與變體存在性判斷)
+  const original = row && defaults ? defaults[row] : undefined;
+  const hasDefaults = defaults != null && Object.keys(defaults).length > 0;
 
   // 該資料列目前已存的值(儲存基準),用來算「哪些欄位改過」與載入表單預設。
   const savedValues = useMemo<PalStatValues>(
@@ -289,20 +295,27 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
               <div className="flex flex-col gap-1 text-xs font-bold text-ink-muted">
                 {t("變體")}
                 <div className="flex flex-wrap gap-1.5">
-                  {PAL_ROW_VARIANTS.map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      className={`rounded-full border-2 px-3 py-1 text-xs font-bold transition ${
-                        variant === v.id
-                          ? "border-pal bg-pal/10 text-pal"
-                          : "border-line text-ink-muted hover:border-pal/50"
-                      }`}
-                      onClick={() => setVariant(v.id)}
-                    >
-                      {t(v.label)}
-                    </button>
-                  ))}
+                  {PAL_ROW_VARIANTS.map((v) => {
+                    const exists =
+                      !hasDefaults ||
+                      !palId.trim() ||
+                      resolveRowCase(defaults, palRowName(palId.trim(), v.id)) in (defaults ?? {});
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        className={`rounded-full border-2 px-3 py-1 text-xs font-bold transition ${
+                          variant === v.id
+                            ? "border-pal bg-pal/10 text-pal"
+                            : "border-line text-ink-muted hover:border-pal/50"
+                        } ${exists ? "" : "opacity-45"}`}
+                        title={exists ? undefined : t("這隻帕魯沒有此變體的資料列(寫入不會生效)")}
+                        onClick={() => setVariant(v.id)}
+                      >
+                        {t(v.label)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -341,7 +354,8 @@ export function PalStatsTab({ client, instanceId }: { client: AgentClient; insta
                             type="number"
                             className={`${inputCls} w-32 text-right`}
                             value={draft[k]}
-                            placeholder={t("不覆寫")}
+                            placeholder={original?.[k] != null ? String(original[k]) : t("不覆寫")}
+                            title={original?.[k] != null ? t("原版數值:{v}(留空 = 不覆寫)", { v: String(original[k]) }) : undefined}
                             min={meta.min}
                             max={meta.max}
                             step={meta.type === "float" ? (meta.step ?? 0.01) : 1}
