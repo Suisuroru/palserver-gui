@@ -131,9 +131,8 @@ export function LeaderboardTab({ client, instanceId }: { client: AgentClient; in
       )}
 
       {error && <p className={errorCls}>{error}</p>}
-      {note && !scanning && <EmptyState icon={<FiAward />}>{note}</EmptyState>}
-
       {locked && <SponsorLockNotice />}
+      {note && !scanning && <EmptyState icon={<FiAward />}>{note}</EmptyState>}
 
       {!locked && latest && (
         <>
