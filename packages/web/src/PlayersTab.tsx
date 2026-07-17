@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   FiUsers,
-  FiSend,
   FiSlash,
   FiLogOut,
   FiLogIn,
@@ -42,7 +41,7 @@ import {
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { t, useI18n } from "./i18n";
-import { btn, btnGhost, card, errorCls, inputCls } from "./ui";
+import { btnGhost, card, errorCls } from "./ui";
 
 const fmtUptime = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
@@ -78,7 +77,6 @@ export function PlayersTab({
   const [moderation, setModeration] = useState<ModerationLists>(EMPTY_MODERATION);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [detailFor, setDetailFor] = useState<{ id: string; label: string } | null>(null);
 
@@ -126,13 +124,6 @@ export function PlayersTab({
     } finally {
       setBusy(false);
     }
-  };
-
-  const announce = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-    await act(() => client.announce(instanceId, message.trim()), t("已廣播訊息"));
-    setMessage("");
   };
 
   const playerAction = async (player: RestPlayer, action: "kick" | "ban") => {
@@ -206,19 +197,6 @@ export function PlayersTab({
           <Stat label={t("遊戲天數")} value={t("第 {n} 天", { n: metrics.days })} />
         </div>
       )}
-
-      <form className={`${card} flex flex-wrap items-center gap-2`} onSubmit={announce}>
-        <input
-          className={`${inputCls} min-w-52 flex-1`}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder={t("輸入要廣播給所有玩家的訊息…")}
-          maxLength={500}
-        />
-        <button className={`${btn} inline-flex items-center gap-1.5`} disabled={busy || !message.trim()}>
-          <FiSend className="size-4" /> {t("廣播")}
-        </button>
-      </form>
 
       <div className={`${card} p-0`}>
         <h3 className="border-b-2 border-line px-5 py-3 text-sm font-extrabold text-ink-muted">

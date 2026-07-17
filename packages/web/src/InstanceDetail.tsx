@@ -30,7 +30,7 @@ import { classifyLine, categoryColor, formatLine, genericLine, translateTarget, 
 import { STATUS_LABELS } from "./labels";
 import { TABS, LOCKED_TABS, useHiddenTabs, useHiddenCards, type Tab } from "./tabPrefs";
 import { t, t as translate, useI18n } from "./i18n";
-import { InstallProgress, Overlay, StatusBadge, btn, btnGhost, card, errorCls } from "./ui";
+import { InstallProgress, Overlay, StatusBadge, btn, btnGhost, card, errorCls, inputCls } from "./ui";
 import { PortConflictModal } from "./PortConflictModal";
 import type { PortsCheckResult } from "./api";
 
@@ -608,6 +608,23 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
   const transRef = useRef<Map<string, string>>(new Map());
   const [, bumpTrans] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // 廣播訊息(從玩家分頁移來):日誌串流就在上方,管理員能邊看聊天邊回話。
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const sendAnnounce = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      await client.announce(instanceId, message.trim());
+      setMessage("");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSending(false);
+    }
+  };
 
   useEffect(() => {
     client.license().then((l) => setEntitled(hasFeature("log-tools", l))).catch(() => setEntitled(false));
@@ -774,6 +791,27 @@ function LogsTab({ client, instanceId }: { client: AgentClient; instanceId: stri
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* 廣播訊息(從玩家分頁移來):貼在日誌下方,聊天訊息在上面滾,回話就在手邊。 */}
+      {sendError && <p className={errorCls}>{sendError}</p>}
+      <form
+        className="flex shrink-0 items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void sendAnnounce();
+        }}
+      >
+        <input
+          className={`${inputCls} min-w-0 flex-1`}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder={t("輸入要廣播給所有玩家的訊息…")}
+          maxLength={500}
+        />
+        <button className={`${btn} inline-flex shrink-0 items-center gap-1.5`} disabled={sending || !message.trim()}>
+          <FiSend className="size-4" /> {sending ? t("發送中…") : t("廣播")}
+        </button>
+      </form>
     </div>
   );
 }
