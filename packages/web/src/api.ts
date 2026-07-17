@@ -89,6 +89,35 @@ export interface AgentSettingsPatch {
   agentHost?: string;
   webOrigins?: string;
   autoOpenBrowser?: boolean;
+  /** 配置評估健檢的 Gemini API key(只存 agent 本機;GET 不會回傳)。 */
+  geminiApiKey?: string;
+}
+
+/** 配置評估健檢(對應 agent 的 system-review.ts;rating 由前端翻成文字與顏色)。 */
+export type ReviewRating = "good" | "ok" | "poor";
+export interface SystemReview {
+  specs: {
+    platform: string;
+    arch: string;
+    cpuModel: string;
+    cpuCores: number;
+    cpuSpeedMHz: number;
+    ramTotalBytes: number;
+    ramFreeBytes: number;
+    diskTotalBytes: number;
+    diskFreeBytes: number;
+    diskWriteMBps: number;
+    netAvgMs: number | null;
+    netMinMs: number | null;
+    netJitterMs: number | null;
+  };
+  ram: { rating: ReviewRating; score: number };
+  cpu: { rating: ReviewRating; score: number };
+  disk: { rating: ReviewRating; score: number };
+  network: { rating: ReviewRating; score: number };
+  overall: number;
+  aiConfigured: boolean;
+  generatedAt: string;
 }
 
 export interface ConfigSnapshotResult {
@@ -243,6 +272,14 @@ export class AgentClient {
   }
   saveAgentSettings(patch: AgentSettingsPatch): Promise<{ ok: boolean }> {
     return this.request("/api/settings", { method: "PUT", body: JSON.stringify(patch) });
+  }
+  /** 配置評估健檢(進階顯示/贊助者):主機硬體+網路實測與評分。會實跑磁碟/網路測試,約 2-5 秒。 */
+  systemReview(): Promise<SystemReview> {
+    return this.request("/api/system-review");
+  }
+  /** 健檢的 Gemini AI 白話評估(需先在健檢卡設定 API key)。 */
+  systemReviewAi(lang: string): Promise<{ text: string }> {
+    return this.request("/api/system-review/ai", { method: "POST", body: JSON.stringify({ lang }) });
   }
   /** 重啟 agent 以套用系統設定;restarting=false 表示開發模式,需手動重啟。 */
   restartAgent(): Promise<{ restarting: boolean }> {

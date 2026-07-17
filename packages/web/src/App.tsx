@@ -25,6 +25,7 @@ import { usePromoConfig } from "./promoConfig";
 import { MapTab } from "./MapTab";
 import { ConnectFlow } from "./ConnectFlow";
 import { SettingsModal } from "./SettingsModal";
+import { SystemReviewCard } from "./SystemReviewCard";
 import { CreditsModal } from "./CreditsModal";
 import { InstanceDetailPage } from "./InstanceDetail";
 import { Mascot } from "./Mascot";
@@ -327,6 +328,8 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
       {advanced && entitled && instances && instances.length > 0 && (
         <DashboardOverview instances={instances} extras={extras} />
       )}
+      {/* 配置評估健檢:同屬進階顯示(贊助者);手動觸發,不跟著輪詢 */}
+      {advanced && entitled && <SystemReviewCard client={client} />}
       {instances === null ? (
         <EmptyState icon={<GiEggClutch className="animate-bounce" />}>{t("載入中…")}</EmptyState>
       ) : instances.length === 0 ? (
@@ -401,6 +404,16 @@ function DashboardOverview({
   const mem = statsList.reduce((sum, s) => sum + s.memoryBytes, 0);
   const fpsList = lives.map((l) => l.metrics?.serverfps).filter((n): n is number => n != null);
   const minFps = fpsList.length ? Math.min(...fpsList) : null;
+  // 更多進階數字(都來自既有輪詢資料,零額外請求):
+  const daysList = lives.map((l) => l.metrics?.days).filter((n): n is number => n != null);
+  const uptimeList = lives.map((l) => l.metrics?.uptime).filter((n): n is number => n != null);
+  const memLimit = Math.max(0, ...statsList.map((s) => s.memoryLimitBytes));
+  const memPressure = memLimit > 0 && statsList.length ? (mem / memLimit) * 100 : null;
+  const fmtUp = (sec: number) => {
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((sec % 3600) / 60)}m`;
+  };
 
   const tiles: { icon: React.ReactNode; label: string; value: string }[] = [
     { icon: <FiServer className="size-4" />, label: translate("運作中伺服器"), value: `${running.length} / ${instances.length}` },
@@ -408,9 +421,12 @@ function DashboardOverview({
     { icon: <FiCpu className="size-4" />, label: translate("CPU 合計"), value: cpuKnown.length ? `${cpu.toFixed(0)}%` : "—" },
     { icon: <FiHardDrive className="size-4" />, label: translate("記憶體合計"), value: statsList.length ? fmtBytes(mem) : "—" },
     { icon: <FiZap className="size-4" />, label: translate("最低 FPS"), value: minFps != null ? String(minFps) : "—" },
+    { icon: <FiActivity className="size-4" />, label: translate("主機記憶體壓力"), value: memPressure != null ? `${memPressure.toFixed(0)}%` : "—" },
+    { icon: <FiClock className="size-4" />, label: translate("最長運行時間"), value: uptimeList.length ? fmtUp(Math.max(...uptimeList)) : "—" },
+    { icon: <GiEggClutch className="size-4" />, label: translate("最久世界天數"), value: daysList.length ? translate("第 {n} 天", { n: Math.max(...daysList) }) : "—" },
   ];
   return (
-    <div className={`${card} mb-3.5 grid grid-cols-2 gap-3 sm:grid-cols-5`}>
+    <div className={`${card} mb-3.5 grid grid-cols-2 gap-3 sm:grid-cols-4`}>
       {tiles.map((tl) => (
         <div key={tl.label} className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted">
