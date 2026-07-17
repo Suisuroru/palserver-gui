@@ -28,7 +28,7 @@ import { maskSteamIdsInText } from "./SteamId";
 import { hasFeature } from "@palserver/shared";
 import { classifyLine, categoryColor, formatLine, genericLine, translateTarget, useLogPrefs } from "./logHighlight";
 import { STATUS_LABELS } from "./labels";
-import { TABS, LOCKED_TABS, useHiddenTabs, useHiddenCards, useTabOrder, type Tab } from "./tabPrefs";
+import { TABS, LOCKED_TABS, defaultHiddenTabs, useHiddenTabs, useHiddenCards, useTabOrder, type Tab } from "./tabPrefs";
 import { t, t as translate, useI18n } from "./i18n";
 import { InstallProgress, Overlay, StatusBadge, btn, btnGhost, card, errorCls, inputCls } from "./ui";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -518,6 +518,20 @@ export function InstanceDetailPage({
                       </button>
                     );
                   })}
+                  <p className="mt-1 border-t-2 border-line px-2 pb-0.5 pt-1.5 text-[11px] text-ink-muted">
+                    {translate("點一下切換顯示;分頁標籤可直接拖曳排序。")}
+                  </p>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold text-ink-muted transition hover:bg-card-soft hover:text-ink"
+                    onClick={() => {
+                      setHiddenTabs(defaultHiddenTabs(enhancedMode));
+                      setTabOrder(TABS.map((tb) => tb.id));
+                      setMorePanel(false);
+                    }}
+                  >
+                    <FiRefreshCw className="size-3.5 shrink-0" /> {translate("恢復預設分頁與順序")}
+                  </button>
                 </div>
               )}
             </div>

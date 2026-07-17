@@ -52,7 +52,8 @@ export const WORLD_OPTIONS = {
   ServerPlayerMaxNum: { type: "int", default: 32, min: 1, max: 99, category: "server" },
   CoopPlayerMaxNum: { type: "int", default: 4, min: 1, max: 8, category: "server" },
   PublicIP: { type: "string", default: "", maxLength: 64, category: "server" },
-  PublicPort: { type: "int", default: 8211, min: 1024, max: 65535, category: "server" },
+  PublicPort: { type: "int", default: 8211, min: 1024, max: 65535, category: "server",
+    hint: "只影響社群伺服器列表顯示的埠,改這裡不會改實際監聽埠。要換連線埠請到「設定」分頁(或首頁卡片)看實際的遊戲埠。" },
   bIsMultiplay: { type: "bool", default: false, category: "server" },
   bShowPlayerList: { type: "bool", default: false, category: "server" },
   bIsShowJoinLeftMessage: { type: "bool", default: true, category: "server" },
@@ -201,7 +202,8 @@ export const WORLD_OPTIONS = {
   DropItemMaxNum_UNKO: { type: "int", default: 100, min: 0, max: 5000, category: "drop" },
   bActiveUNKO: { type: "bool", default: false, category: "drop" },
   PhysicsActiveDropItemMaxNum: { type: "int", default: -1, min: -1, max: 10000, category: "drop", hint: "啟用物理計算的掉落物上限(-1 = 無上限);設上限可減少物理運算負擔。" },
-  DenyTechnologyList: { type: "string", default: "", maxLength: 512, category: "drop" },
+  DenyTechnologyList: { type: "string", default: "", maxLength: 512, category: "drop",
+    hint: "填科技的英文內部 ID,逗號分隔(例:Workbench,Pickaxe)。ID 對照表:docs.palworldgame.com 的 technologyids 頁面;填中文名稱無效。" },
 
   // ── world ─────────────────────────────────────────────────────────────
   Difficulty: {
@@ -218,6 +220,7 @@ export const WORLD_OPTIONS = {
   bCharacterRecreateInHardcore: { type: "bool", default: false, category: "world" },
   RandomizerType: {
     type: "enum", default: "None", choices: ["None", "Region", "All"], category: "world",
+    hint: "只在「建立新世界」時生效 — 既有世界改這個不會有任何變化。",
   },
   // 官方 ini 是帶引號的字串(RandomizerSeed=""),曾誤標為 int 導致寫出無引號的
   // 0 而觸發「missing opening symbol」解析錯誤;舊存的數字值由 schema 的 catch

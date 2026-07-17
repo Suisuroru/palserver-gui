@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiAlertTriangle, FiFileText, FiMessageSquare, FiShield } from "react-icons/fi";
+import { FiAlertTriangle, FiFileText, FiMessageSquare, FiShield, FiSearch } from "react-icons/fi";
 import {
   PALDEFENDER_OPTIONS,
   PD_MOTD_MAX_LINES,
@@ -52,6 +52,7 @@ export function PalDefenderTab({
   // 版本管理(從「模組」分頁移來):更新到最新版 / 安裝測試版
   const [mods, setMods] = useState<ModsStatus | null>(null);
   const [verBusy, setVerBusy] = useState<"stable" | "beta" | "toggle" | null>(null);
+  const [optSearch, setOptSearch] = useState("");
 
   // 最新穩定版(「有新版」徽章)與停用/啟用
   const [latest, setLatest] = useState<{ ue4ss: string | null; paldefender: string | null } | null>(null);
@@ -139,7 +140,17 @@ export function PalDefenderTab({
   };
 
   const grouped = new Map<string, PdOptionKey[]>();
+  const q = optSearch.trim().toLowerCase();
   for (const key of KEYS) {
+    // 搜尋:比對原始 key + 翻譯後標籤 + hint,留空顯示全部
+    if (q) {
+      const meta = PALDEFENDER_OPTIONS[key] as { label: string; hint?: string };
+      const hit =
+        key.toLowerCase().includes(q) ||
+        t(meta.label).toLowerCase().includes(q) ||
+        (meta.hint ? t(meta.hint).toLowerCase().includes(q) : false);
+      if (!hit) continue;
+    }
     const label = t(PD_CATEGORY_LABELS[PALDEFENDER_OPTIONS[key].category as PdOptionCategory]);
     grouped.set(label, [...(grouped.get(label) ?? []), key]);
   }
@@ -252,6 +263,20 @@ export function PalDefenderTab({
           rows={4}
         />
       </div>
+
+      <label className="relative w-fit">
+        <FiSearch className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-muted" />
+        <input
+          className={`${inputCls} w-56 py-1.5 pl-8 text-[13px]`}
+          value={optSearch}
+          placeholder={t("搜尋設定(名稱或原始 key)…")}
+          onChange={(e) => setOptSearch(e.target.value)}
+        />
+      </label>
+
+      {q && grouped.size === 0 && (
+        <p className="py-4 text-center text-[13px] text-ink-muted">{t("沒有符合「{q}」的設定。", { q: optSearch.trim() })}</p>
+      )}
 
       {[...grouped.entries()].map(([category, keys]) => (
         <div key={category} className={card}>

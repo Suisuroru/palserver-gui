@@ -201,6 +201,7 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
   const [pendingImport, setPendingImport] = useState<ExternalWorldCandidate | null>(null);
   const [order, setOrder] = useState<string[]>(loadInstanceOrder);
   const [advanced, setAdvanced] = useState(() => localStorage.getItem(ADVANCED_KEY) === "1");
+  const [listSearch, setListSearch] = useState("");
   const [showReview, setShowReview] = useState(false); // 配置評估健檢彈窗
   const [extras, setExtras] = useState<Record<string, CardExtra>>({});
   // 進階顯示是贊助者先行功能(dashboard-stats),與其他早鳥功能同一套判斷。
@@ -219,6 +220,10 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
   }, [client]);
 
   const ordered = instances ? sortByOrder(instances, order) : [];
+  // 台數多時的名稱搜尋(6 台以上才顯示輸入框);搜尋中仍可拖曳,但只影響顯示順序
+  const filtered = listSearch.trim()
+    ? ordered.filter((i) => i.name.toLowerCase().includes(listSearch.trim().toLowerCase()))
+    : ordered;
   // 拖曳需要移動 8px 才啟動,讓「單純點擊卡片」照樣開啟該伺服器;鍵盤也能排序(無障礙)。
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -305,10 +310,19 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
             <button
               className={`${btnGhost} inline-flex items-center gap-1.5 opacity-70`}
               title={t("此功能為贊助者專屬功能,可在設定頁輸入贊助者識別碼解鎖。")}
+              onClick={() => window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT))}
             >
               <FiActivity className="size-4" /> {t("進階顯示")}
               <FiStar className="size-3.5 text-pal" />
             </button>
+          )}
+          {ordered.length >= 6 && (
+            <input
+              className={`${inputCls} w-40 py-1.5 text-[13px]`}
+              value={listSearch}
+              placeholder={t("搜尋伺服器…")}
+              onChange={(e) => setListSearch(e.target.value)}
+            />
           )}
           <button
             className={`${btn} inline-flex items-center gap-1.5`}
@@ -363,9 +377,9 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
         </EmptyState>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={ordered.map((i) => i.id)} strategy={rectSortingStrategy}>
+          <SortableContext items={filtered.map((i) => i.id)} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(min(290px,100%),1fr))] gap-3.5">
-              {ordered.map((inst) => (
+              {filtered.map((inst) => (
                 <SortableServerCard
                   key={inst.id}
                   inst={inst}
@@ -654,14 +668,22 @@ function CreateDialog({
         <div className="flex items-center gap-2">
           {STEP_TITLES.map((title, i) => (
             <div key={title} className="flex items-center gap-2">
-              <span
-                className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-extrabold ${
-                  i === step ? "bg-pal text-white" : i < step ? "bg-pal/20 text-pal" : "bg-card-soft text-ink-muted"
-                }`}
+              {/* 已走過的步驟可直接點回;往前仍走「下一步」以維持驗證 */}
+              <button
+                type="button"
+                className={`inline-flex items-center gap-2 ${i < step ? "cursor-pointer" : "cursor-default"}`}
+                onClick={() => i < step && setStep(i)}
+                disabled={i >= step}
               >
-                {i + 1}
-              </span>
-              <span className={`text-xs font-extrabold ${i === step ? "text-ink" : "text-ink-muted"}`}>{title}</span>
+                <span
+                  className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-extrabold transition ${
+                    i === step ? "bg-pal text-white" : i < step ? "bg-pal/20 text-pal hover:bg-pal/35" : "bg-card-soft text-ink-muted"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+                <span className={`text-xs font-extrabold ${i === step ? "text-ink" : "text-ink-muted"}`}>{title}</span>
+              </button>
               {i < STEP_TITLES.length - 1 && <span className="h-0.5 w-6 rounded bg-line" />}
             </div>
           ))}
