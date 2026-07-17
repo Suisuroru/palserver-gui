@@ -80,6 +80,7 @@ export function PlayersTab({
   const [busy, setBusy] = useState(false);
   const [detailFor, setDetailFor] = useState<{ id: string; label: string } | null>(null);
 
+  // 一次性重整，平常定期更新走 WebSocket 推播。
   const refresh = useCallback(async () => {
     try {
       const [liveStatus, knownPlayers, presenceEvents, mod] = await Promise.all([
@@ -103,9 +104,23 @@ export function PlayersTab({
 
   useEffect(() => {
     void refresh();
-    const timer = setInterval(refresh, 5000);
-    return () => clearInterval(timer);
-  }, [refresh]);
+    const ws = client.playersFeedSocket(instanceId);
+    ws.onmessage = (ev) => {
+      const data = JSON.parse(ev.data as string) as
+        | { live: LiveStatus; known: KnownPlayer[]; events: PresenceEvent[]; moderation: ModerationLists }
+        | { error: string };
+      if ("error" in data) {
+        setError(data.error);
+        return;
+      }
+      setLive(data.live);
+      setKnown(data.known);
+      setEvents(data.events);
+      setModeration(data.moderation);
+      setError(null);
+    };
+    return () => ws.close();
+  }, [client, instanceId, refresh]);
 
   const flash = (text: string) => {
     setNotice(text);
