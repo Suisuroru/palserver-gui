@@ -104,22 +104,41 @@ export function PlayersTab({
 
   useEffect(() => {
     void refresh();
-    const ws = client.playersFeedSocket(instanceId);
-    ws.onmessage = (ev) => {
-      const data = JSON.parse(ev.data as string) as
-        | { live: LiveStatus; known: KnownPlayer[]; events: PresenceEvent[]; moderation: ModerationLists }
-        | { error: string };
-      if ("error" in data) {
-        setError(data.error);
-        return;
-      }
-      setLive(data.live);
-      setKnown(data.known);
-      setEvents(data.events);
-      setModeration(data.moderation);
-      setError(null);
+    let stopped = false;
+    let ws: WebSocket | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryDelay = 1000; // 斷線重連
+
+    const connect = () => {
+      ws = client.playersFeedSocket(instanceId);
+      ws.onmessage = (ev) => {
+        retryDelay = 1000;
+        const data = JSON.parse(ev.data as string) as
+          | { live: LiveStatus; known: KnownPlayer[]; events: PresenceEvent[]; moderation: ModerationLists }
+          | { error: string };
+        if ("error" in data) {
+          setError(data.error);
+          return;
+        }
+        setLive(data.live);
+        setKnown(data.known);
+        setEvents(data.events);
+        setModeration(data.moderation);
+        setError(null);
+      };
+      ws.onclose = () => {
+        if (stopped) return;
+        retryTimer = setTimeout(connect, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 10000);
+      };
     };
-    return () => ws.close();
+    connect();
+
+    return () => {
+      stopped = true;
+      clearTimeout(retryTimer);
+      ws?.close();
+    };
   }, [client, instanceId, refresh]);
 
   const flash = (text: string) => {
