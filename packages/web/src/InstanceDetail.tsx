@@ -618,7 +618,7 @@ function SortableTabButton({
     <button
       ref={setNodeRef}
       data-tab={id}
-      style={{ transform: DndCSS.Transform.toString(transform), transition, touchAction: "none" }}
+      style={{ transform: DndCSS.Translate.toString(transform), transition, touchAction: "none" }}
       className={`${
         active
           ? "-mb-0.5 border-b-[3px] border-pal px-4 py-2 text-sm font-extrabold whitespace-nowrap text-pal"
