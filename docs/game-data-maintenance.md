@@ -162,6 +162,24 @@ node scripts/fetch-lab-research.mjs
 
 ---
 
+## 更新帕魯原版數值（pal-stats-defaults.json）
+
+帕魯數值編輯器的 placeholder / row 名大小寫校正 / 變體存在性判斷都吃這份。
+
+```bash
+node scripts/fetch-pal-stats-defaults.mjs
+```
+
+- 來源：paldb.cc（`/en/Pals` 索引枚舉一般種頁 → 每頁「Tribes」卡跟進變體頁）。
+  頁面的「Code」欄位是權威 RowName——**大小寫以它為準**（`BOSS_` 大寫為主流、
+  `Boss_Anubis` 是唯一混用例外），不要手改。
+- 欄位標籤對照（三個不同名）：Health→`Hp`、Attack→`ShotAttack`、Work Speed→`CraftSpeed`；
+  同名標籤取第一次出現（第二次是等級縮放後的範圍值）。
+- 驗證：腳本輸出的「row 數」應在 650 上下、「前綴分佈」的 normal 與 BOSS_ 應各約 300；
+  抽 `Anubis`（Hp 120）與 `Boss_Anubis`（Hp 144、CaptureRateCorrect 0.7）對照 paldb 頁面。
+
+---
+
 ## 更新地圖（底圖 + 地標）
 
 地圖在 `packages/web/src/MapTab.tsx`，用 Leaflet `CRS.Simple` 把一張大底圖鋪成座標系。
