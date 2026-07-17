@@ -319,10 +319,15 @@ export class AgentClient {
     id: string,
     action: "start" | "stop" | "restart",
     announceTemplate?: string,
+    /** true = 中止進行中的倒數公告,立即執行(「立即停止」按第二下)。 */
+    immediate?: boolean,
   ): Promise<InstanceSummary> {
     return this.request(`/api/instances/${id}/${action}`, {
       method: "POST",
-      body: announceTemplate ? JSON.stringify({ announceTemplate }) : undefined,
+      body:
+        announceTemplate || immediate
+          ? JSON.stringify({ announceTemplate, immediate })
+          : undefined,
     });
   }
 

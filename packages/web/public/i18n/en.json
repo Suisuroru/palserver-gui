@@ -1591,5 +1591,6 @@
   "快速傳送全開": "Unlock all fast travel",
   "解鎖中…": "Unlocking…",
   "把全部快速傳送點解鎖給所有玩家(寫入玩家存檔;需伺服器停止,會先自動備份)": "Unlock every fast travel point for all players (writes player saves; server must be stopped, auto-backup first)",
-  "存檔解鎖(全體玩家快速傳送全開)": "Save unlocks (all fast travel for every player)"
+  "存檔解鎖(全體玩家快速傳送全開)": "Save unlocks (all fast travel for every player)",
+  "立即停止": "Stop now"
 }

@@ -119,22 +119,48 @@ const COUNTDOWN_MARKS = [60, 30, 20, 10, 5, 3, 2, 1];
  * 手動停止/重啟前,在遊戲聊天室倒數公告再執行。訊息用呼叫端(GUI)傳來的在地化模板,
  * `{n}` 由這裡代入剩餘秒數;公告走伺服器 REST,REST 沒開就直接跳過(不空等)。
  */
-async function announceCountdown(rec: InstanceRecord, seconds: number, template: string): Promise<void> {
+async function announceCountdown(
+  rec: InstanceRecord,
+  seconds: number,
+  template: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const say = (n: number) => rest.announce(rec, template.split("{n}").join(String(n)));
   const marks = [seconds, ...COUNTDOWN_MARKS.filter((m) => m < seconds)];
+  // 可中止的 sleep:「立即停止」時提前醒來,直接進入停止流程
+  const sleepAbortable = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
+    });
   try {
     await say(marks[0]); // 先發第一則,順便確認 REST 可用
   } catch {
     return; // REST 未啟用 — 無法公告,直接執行,不空等
   }
   for (let i = 0; i < marks.length; i++) {
+    if (signal?.aborted) return;
     if (i > 0) await say(marks[i]).catch(() => {});
     const next = marks[i + 1] ?? 0;
-    await sleep((marks[i] - next) * 1000);
+    await sleepAbortable((marks[i] - next) * 1000);
   }
 }
 
-const AnnounceBody = z.object({ announceTemplate: z.string().max(500).optional() });
+/** 進行中的停機倒數(instance id → 中止器);「立即停止」按第二下時取消。 */
+const pendingCountdowns = new Map<string, AbortController>();
+
+const AnnounceBody = z.object({
+  announceTemplate: z.string().max(500).optional(),
+  /** true = 跳過/中止倒數公告,立即執行(停止按第二下)。 */
+  immediate: z.boolean().optional(),
+});
 
 export function registerRoutes(
   app: FastifyInstance,
@@ -932,16 +958,33 @@ export function registerRoutes(
   /** 停止/重啟前若帶了 announceTemplate 且伺服器在跑,依該實例的 announceSeconds 設定
    * 先在遊戲聊天室倒數公告(0 秒 = 不公告)。announceSeconds 與自動重啟共用同一個設定。 */
   const announceBeforeDowntime = async (rec: InstanceRecord, body: unknown): Promise<void> => {
-    const template = AnnounceBody.safeParse(body ?? {}).data?.announceTemplate;
+    const parsed = AnnounceBody.safeParse(body ?? {}).data;
+    if (parsed?.immediate) return; // 立即模式:不倒數
+    const template = parsed?.announceTemplate;
     if (!template) return;
     const seconds = Math.min(Math.max(supervisor.readPolicy(rec.id).announceSeconds, 0), 300);
     if (seconds <= 0) return;
     if ((await driverOf(rec).status(rec, ctxOf(rec))).status !== "running") return;
-    await announceCountdown(rec, seconds, template);
+    const ctrl = new AbortController();
+    pendingCountdowns.set(rec.id, ctrl);
+    try {
+      await announceCountdown(rec, seconds, template, ctrl.signal);
+    } finally {
+      pendingCountdowns.delete(rec.id);
+    }
   };
 
   app.post("/api/instances/:id/stop", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
+    // 「立即停止」:有進行中的倒數就中止它 —— 原請求會馬上接手執行停止,
+    // 本請求只回摘要,避免兩個請求同時對 driver 下 stop。
+    if (AnnounceBody.safeParse(req.body ?? {}).data?.immediate) {
+      const pending = pendingCountdowns.get(rec.id);
+      if (pending) {
+        pending.abort();
+        return toSummary(rec);
+      }
+    }
     await announceBeforeDowntime(rec, req.body);
     await driverOf(rec).stop(rec, ctxOf(rec));
     presence.markAllOffline(rec.id);

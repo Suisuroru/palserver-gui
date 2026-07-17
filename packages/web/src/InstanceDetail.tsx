@@ -94,6 +94,8 @@ export function InstanceDetailPage({
   const [palDefender, setPalDefender] = useState(false);
   // 非 null 時代表正在倒數(數字為剩餘秒數),用來鎖按鈕與顯示提示。
   const [countdown, setCountdown] = useState<number | null>(null);
+  // 倒數中的動作(停止/重啟):停止倒數時把「停止」鈕換成「立即停止」(再按一下跳過倒數)
+  const countdownAction = useRef<"stop" | "restart" | null>(null);
   // 意外停止偵測:上次輪詢還是 running、這次變 stopped、且使用者沒按過停止/重啟
   // → 幾乎都是閃退(壞 ini / 模組衝突),要明講而不是默默變「已停止」。
   const stopRequested = useRef(false);
@@ -191,6 +193,7 @@ export function InstanceDetailPage({
           .catch(() => 0);
         if (seconds > 0) {
           const startedAt = Date.now();
+          countdownAction.current = action as "stop" | "restart";
           setCountdown(seconds);
           timer = setInterval(() => {
             const left = seconds - Math.floor((Date.now() - startedAt) / 1000);
@@ -204,7 +207,17 @@ export function InstanceDetailPage({
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       if (timer) clearInterval(timer);
+      countdownAction.current = null;
       setCountdown(null);
+    }
+  };
+
+  /** 倒數中的「立即停止」:中止 agent 端倒數,原請求立刻執行停止。 */
+  const stopNow = async () => {
+    try {
+      await client.action(instanceId, "stop", undefined, true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -265,10 +278,11 @@ export function InstanceDetailPage({
           ) : (
             <button
               className={`${btn} inline-flex items-center gap-1.5`}
-              onClick={() => act("stop")}
-              disabled={countdown !== null}
+              onClick={() => (countdown !== null && countdownAction.current === "stop" ? void stopNow() : void act("stop"))}
+              disabled={countdown !== null && countdownAction.current !== "stop"}
             >
-              <FiSquare className="size-4" /> {t("停止")}
+              <FiSquare className="size-4" />{" "}
+              {countdown !== null && countdownAction.current === "stop" ? t("立即停止") : t("停止")}
             </button>
           )}
           <button
