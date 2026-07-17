@@ -41,17 +41,20 @@ import type { PortsCheckResult } from "./api";
 export function InstanceDetailPage({
   client,
   instanceId,
+  initialTab,
   onBack,
   onDeleted,
 }: {
   client: AgentClient;
   instanceId: string;
+  /** 進頁時預先落在的分頁(例:強化建立完直接帶到「反作弊插件」)。 */
+  initialTab?: Tab;
   onBack: () => void;
   onDeleted: () => void;
 }) {
   useI18n();
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "overview");
   // 玩家詳情「據點跳地圖」:切到地圖分頁並聚焦座標(n 為 nonce,連點同一點也重觸發)
   const [mapFocus, setMapFocus] = useState<{ x: number; y: number; n: number } | null>(null);
   // 分頁偏好每實例獨立;預設集合只看「建立時選的口味」——事後手動安裝模組
@@ -117,8 +120,9 @@ export function InstanceDetailPage({
   useEffect(() => checkPalDefender(), [checkPalDefender]);
   // 移除 PalDefender 時人正停在該分頁 → 退回總覽(帕魯數值不依賴 PalDefender,不在此列)
   useEffect(() => {
-    if (tab === "paldefender" && !palDefender) setTab("overview");
-  }, [tab, palDefender]);
+    // 強化(modded)實例例外:autoEnhance 會裝 PalDefender,分頁常駐(裝好前顯示原因)
+    if (tab === "paldefender" && !palDefender && detail?.flavor !== "modded") setTab("overview");
+  }, [tab, palDefender, detail]);
 
   useEffect(() => {
     void refresh();
@@ -361,7 +365,7 @@ export function InstanceDetailPage({
         const orderedTabs = tabOrder
           .map((id) => TABS.find((tb) => tb.id === id))
           .filter((tb): tb is (typeof TABS)[number] => !!tb)
-          .filter((tb) => tb.id !== "paldefender" || palDefender)
+          .filter((tb) => tb.id !== "paldefender" || palDefender || detail.flavor === "modded")
           .filter((tb) => tb.id !== "palstats" || SHOW_SPONSOR_FEATURES);
         const visibleTabs = orderedTabs.filter((tb) => LOCKED_TABS.includes(tb.id) || !hiddenTabs.includes(tb.id));
         const manageable = orderedTabs.filter((tb) => !LOCKED_TABS.includes(tb.id));
@@ -493,11 +497,6 @@ export function InstanceDetailPage({
           instanceId={detail.id}
           running={detail.status === "running"}
           onModsChanged={checkPalDefender}
-          onOpenPalDefender={() => {
-            setPalDefender(true); // 按鈕只在已安裝時出現;搶在重查完成前放行 gating
-            setHiddenTabs(hiddenTabs.filter((id) => id !== "paldefender"));
-            setTab("paldefender");
-          }}
         />
       )}
       {tab === "paldefender" && (

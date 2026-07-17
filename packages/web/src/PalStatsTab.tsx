@@ -240,7 +240,6 @@ export function PalStatsTab({
 
       <div className={locked ? "pointer-events-none opacity-55" : undefined}>
         <ModInstallCard
-          icon={<GiSheep className="size-8 text-pal" />}
           title={t("帕魯物種數值編輯器")}
           titleExtra={
             <span className="inline-flex items-center gap-1 rounded-full bg-pal/10 px-2 py-0.5 text-xs font-bold text-pal">

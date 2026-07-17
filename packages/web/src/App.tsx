@@ -28,6 +28,7 @@ import { SettingsModal } from "./SettingsModal";
 import { SystemReviewCard } from "./SystemReviewCard";
 import { CreditsModal } from "./CreditsModal";
 import { InstanceDetailPage } from "./InstanceDetail";
+import type { Tab } from "./tabPrefs";
 import { Mascot } from "./Mascot";
 import { AnnouncementPopup } from "./AnnouncementModal";
 import { ImportSaveModal } from "./ImportSaveModal";
@@ -98,6 +99,8 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
   const { faq } = usePromoConfig();
   const client = useRef(new AgentClient(conn, onDisconnect)).current;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 進實例頁時要預先落在的分頁(強化建立完 → 反作弊插件)
+  const [initialTab, setInitialTab] = useState<Tab | undefined>(undefined);
   const [showSettings, setShowSettings] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
 
@@ -154,11 +157,18 @@ function Shell({ conn, onDisconnect }: { conn: Connection; onDisconnect: () => v
         <InstanceDetailPage
           client={client}
           instanceId={selectedId}
+          initialTab={initialTab}
           onBack={() => setSelectedId(null)}
           onDeleted={() => setSelectedId(null)}
         />
       ) : (
-        <Dashboard client={client} onOpen={(id) => setSelectedId(id)} />
+        <Dashboard
+          client={client}
+          onOpen={(id, tab) => {
+            setInitialTab(tab);
+            setSelectedId(id);
+          }}
+        />
       )}
     </div>
   );
@@ -191,7 +201,7 @@ interface CardExtra {
   live: LiveStatus | null;
 }
 
-function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: string) => void }) {
+function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: string, tab?: Tab) => void }) {
   const { t } = useI18n();
   const [instances, setInstances] = useState<InstanceSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -343,7 +353,7 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
       )}
       {showReview && (
         <Overlay onClose={() => setShowReview(false)}>
-          <div className="w-160 max-w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="w-200 max-w-full" onClick={(e) => e.stopPropagation()}>
             <SystemReviewCard client={client} onClose={() => setShowReview(false)} />
           </div>
         </Overlay>
@@ -377,10 +387,12 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
             setShowCreate(false);
             setPendingImport(null);
           }}
-          onCreated={() => {
+          onCreated={(created) => {
             setShowCreate(false);
             setPendingImport(null);
             void refresh();
+            // 強化模式:直接帶進新伺服器的「反作弊插件」分頁(autoEnhance 會裝 PalDefender)
+            if (created.flavor === "modded") onOpen(created.id, "paldefender");
           }}
         />
       )}
@@ -553,7 +565,7 @@ function CreateDialog({
 }: {
   client: AgentClient;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (created: InstanceSummary) => void;
   /** 從「匯入存檔」流程帶進來的世界 — 建立成功後自動匯入並設為啟用世界。 */
   importWorld?: ExternalWorldCandidate;
 }) {
@@ -616,7 +628,7 @@ function CreateDialog({
         settings: { ...presetValues, ServerPlayerMaxNum: maxPlayers, ServerPassword: serverPassword },
       });
       if (importWorld) await client.importSave(created.id, importWorld.path, false);
-      onCreated();
+      onCreated(created);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);

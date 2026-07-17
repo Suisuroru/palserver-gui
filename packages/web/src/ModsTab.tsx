@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { GiShield, GiScrollUnfurled } from "react-icons/gi";
 import { FiPackage, FiFolder, FiTrash2, FiAlertTriangle } from "react-icons/fi";
 import type { ModComponent, ModsStatus } from "@palserver/shared";
 import type { AgentClient } from "./api";
@@ -8,32 +7,12 @@ import { ModInstallCard } from "./ModInstallCard";
 import { t, useI18n } from "./i18n";
 import { EmptyState, btnGhost, card, errorCls, DismissibleWarning } from "./ui";
 
-const COMPONENTS: {
-  id: ModComponent;
-  title: string;
-  desc: string;
-  icon: React.ReactNode;
-}[] = [
-  {
-    id: "paldefender",
-    title: "PalDefender 反外掛",
-    desc: "伺服器端驗證,防止已知外掛、漏洞與惡意崩潰(前身為 Palguard)。安裝後啟動一次伺服器會自動生成設定檔。",
-    icon: <GiShield className="size-8 text-pal" />,
-  },
-  {
-    id: "ue4ss",
-    title: "UE4SS 模組載入器",
-    desc: "Lua / Blueprint 模組的執行環境。安裝後即可在下方管理 Lua 模組。",
-    icon: <GiScrollUnfurled className="size-8 text-pal" />,
-  },
-];
 
 export function ModsTab({
   client,
   instanceId,
   running,
   onModsChanged,
-  onOpenPalDefender,
 }: {
   client: AgentClient;
   instanceId: string;
@@ -41,7 +20,6 @@ export function ModsTab({
   /** 安裝/移除模組後通知外層(讓 PalDefender 分頁的 gating 同步)。 */
   onModsChanged?: () => void;
   /** PalDefender 卡的「設定」按鈕:開啟 PalDefender 分頁並切換過去。 */
-  onOpenPalDefender?: () => void;
 }) {
   useI18n();
   const [mods, setMods] = useState<ModsStatus | null>(null);
@@ -155,39 +133,18 @@ export function ModsTab({
           {t("伺服器運作中:安裝、更新或移除模組需要先停止伺服器(執行中時模組檔案被鎖定)。")}
         </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {COMPONENTS.map((c) => {
-          const state = mods[c.id];
-          // PalDefender 已安裝:版本更新/測試版移至「反作弊插件」分頁,這裡只留設定與移除
-          const pdInstalled = c.id === "paldefender" && state.installed;
-          return (
-            <ModInstallCard
-              key={c.id}
-              icon={c.icon}
-              title={t(c.title)}
-              desc={t(c.desc)}
-              installed={state.installed}
-              version={state.version}
-              running={running}
-              busy={busy === c.id}
-              onInstall={pdInstalled ? undefined : () => void install(c.id)}
-              onInstallBeta={pdInstalled ? undefined : () => void install(c.id, "beta")}
-              onOpen={c.id === "paldefender" && state.installed ? onOpenPalDefender : undefined}
-              openTitle={t("開啟 PalDefender 分頁調整反作弊、廣播、玩家管理等設定")}
-              onUninstall={() => void uninstall(c.id)}
-              note={
-                c.id === "paldefender"
-                  ? state.installed
-                    ? t("版本更新與測試版安裝已移至「反作弊插件」分頁。")
-                    : t("「玩家細節(查看帕魯/背包)」需要 v1.8.0 以上的測試版才支援。")
-                  : undefined
-              }
-            />
-          );
-        })}
-      </div>
-      <p className="text-[13px] text-ink-muted">{t("安裝或更新後,重啟伺服器才會生效。")}</p>
-
+      <ModInstallCard
+        title={t("UE4SS 模組載入器")}
+        desc={t("Lua / Blueprint 模組的執行環境。安裝後即可在下方管理 Lua 模組。")}
+        installed={mods.ue4ss.installed}
+        version={mods.ue4ss.version}
+        running={running}
+        busy={busy === "ue4ss"}
+        onInstall={() => void install("ue4ss")}
+        onInstallBeta={() => void install("ue4ss", "beta")}
+        onUninstall={() => void uninstall("ue4ss")}
+        note={t("安裝或更新後,重啟伺服器才會生效。")}
+      />
       <div className={card}>
         <div className="mb-2 flex items-center justify-between gap-2">
           <h3 className="text-sm font-extrabold text-ink-muted">{t("Lua 模組(UE4SS)")}</h3>
@@ -228,31 +185,6 @@ export function ModsTab({
         )}
       </div>
 
-      <div className={card}>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="text-sm font-extrabold text-ink-muted">{t("Pak 模組")}</h3>
-          <button
-            className={`${btnGhost} inline-flex items-center gap-1.5`}
-            onClick={() => setBrowsing("Pal/Content/Paks")}
-          >
-            <FiFolder className="size-4" /> {t("開啟 Paks 資料夾")}
-          </button>
-        </div>
-        {mods.pakMods.length === 0 ? (
-          <EmptyState compact>
-            {t("尚無 Pak 模組。用上方的「開啟 Paks 資料夾」上傳 .pak 檔(Blueprint 模組放 LogicMods 子資料夾)。")}
-          </EmptyState>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {mods.pakMods.map((name) => (
-              <li key={name} className="text-sm font-bold">
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
       {browsing !== null && (
         <FileBrowserDialog
           client={client}
@@ -268,6 +200,7 @@ export function ModsTab({
       <PakModCard
         pakMods={pakMods}
         busy={!!busy}
+        onBrowse={() => setBrowsing("Pal/Content/Paks")}
         onToggle={async (name, enabled) => {
           try { setBusy(name); await client.togglePakMod(instanceId, name, enabled); await refresh(); }
           catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -290,11 +223,14 @@ function PakModCard({
   busy,
   onToggle,
   onRemove,
+  onBrowse,
 }: {
   pakMods: { name: string; size: number; enabled: boolean }[];
   busy: boolean;
   onToggle: (name: string, enabled: boolean) => Promise<void>;
   onRemove: (name: string) => Promise<void>;
+  /** 開啟 Paks 資料夾(檔案管理);未提供就不顯示按鈕。 */
+  onBrowse?: () => void;
 }) {
   const fmtSize = (n: number) =>
     n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : n > 0 ? `${(n / (1 << 10)).toFixed(0)} KB` : "—";
@@ -307,6 +243,14 @@ function PakModCard({
         <span className="rounded-full bg-grass/10 px-2 py-0.5 text-[11px] font-bold text-grass">
           {t("跨平台")}
         </span>
+        {onBrowse && (
+          <button
+            className={`${btnGhost} ml-auto inline-flex items-center gap-1.5`}
+            onClick={onBrowse}
+          >
+            <FiFolder className="size-4" /> {t("開啟 Paks 資料夾")}
+          </button>
+        )}
       </div>
       <p className="mb-3 text-[13px] text-ink-muted">
         {t(".pak 檔放入 Pal/Content/Paks/ 後由遊戲引擎自動載入,不需 UE4SS。透過檔案管理上傳 pak 後在此管理。")}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiAlertTriangle, FiCheck, FiDownload, FiFileText, FiMessageSquare, FiShield } from "react-icons/fi";
+import { FiAlertTriangle, FiFileText, FiMessageSquare, FiShield } from "react-icons/fi";
 import {
   PALDEFENDER_OPTIONS,
   PD_MOTD_MAX_LINES,
@@ -14,6 +14,7 @@ import {
 } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { FileEditor } from "./FileManager";
+import { ModInstallCard } from "./ModInstallCard";
 import { RestStatusCard } from "./RestStatusCard";
 import { t, useI18n } from "./i18n";
 import { EmptyState, btn, btnGhost, card, errorCls, inputCls } from "./ui";
@@ -85,11 +86,6 @@ export function PalDefenderTab({
 
   if (!status) return <p className="text-ink-muted">{error ?? t("載入中…")}</p>;
 
-  if (!status.supported) {
-    return (
-      <EmptyState icon={<FiShield />}>{status.reason}</EmptyState>
-    );
-  }
 
   const installVersion = async (channel: "stable" | "beta") => {
     if (channel === "beta" && !confirm(t("測試版(Beta)可能不穩定,但含較新的功能(例如玩家細節 API)。\n\n確定要安裝最新測試版嗎?"))) {
@@ -130,12 +126,39 @@ export function PalDefenderTab({
     grouped.set(label, [...(grouped.get(label) ?? []), key]);
   }
 
+  const versionCard = (
+    <ModInstallCard
+      title={t("PalDefender 版本")}
+      installed={!!mods?.paldefender.installed}
+      version={mods?.paldefender.version}
+      running={running}
+      busy={verBusy !== null}
+      busyLabel={t("安裝中…")}
+      onInstall={() => void installVersion("stable")}
+      onInstallBeta={() => void installVersion("beta")}
+      note={<>{t("「玩家細節(查看帕魯/背包)」需要 v1.8.0 以上的測試版才支援。")}{t("安裝或更新後,重啟伺服器才會生效。")}</>}
+    />
+  );
+
+  if (!status.supported) {
+    return (
+      <div className="flex flex-col gap-4">
+        {error && <p className={errorCls}>{error}</p>}
+        {versionCard}
+        <EmptyState icon={<FiShield />}>{status.reason}</EmptyState>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className={errorCls}>{error}</p>}
       {notice && (
         <p className="rounded-xl bg-grass/10 px-3 py-2 text-[13px] font-bold text-grass">{notice}</p>
       )}
+
+      {/* 版本管理(從「模組」分頁移來):放在編輯 Config.json 的標題卡上面 */}
+      {versionCard}
 
       <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
         <p className="inline-flex items-center gap-2 text-sm font-extrabold">
@@ -152,40 +175,6 @@ export function PalDefenderTab({
       </div>
       {!status.exists && status.reason && <p className="text-[13px] text-sun">{status.reason}</p>}
 
-      {/* 版本管理(從「模組」分頁移來):PalDefender 的更新與測試版 */}
-      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-        <div className="inline-flex min-w-0 items-center gap-2">
-          <span className="text-sm font-extrabold text-ink-muted">{t("PalDefender 版本")}</span>
-          {mods?.paldefender.installed && (
-            <span className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-grass/40 bg-grass/15 px-3 py-1 text-xs font-bold text-grass">
-              <FiCheck className="size-3.5" />
-              {t("已安裝")}{mods.paldefender.version ? ` ${mods.paldefender.version}` : ""}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className={`${btn} inline-flex items-center gap-1.5`}
-            onClick={() => void installVersion("stable")}
-            disabled={verBusy !== null || running}
-            title={running ? t("請先停止伺服器") : undefined}
-          >
-            <FiDownload className="size-4" />
-            {verBusy === "stable" ? t("安裝中…") : t("更新到最新版")}
-          </button>
-          <button
-            className={`${btnGhost} inline-flex items-center gap-1.5`}
-            onClick={() => void installVersion("beta")}
-            disabled={verBusy !== null || running}
-            title={running ? t("請先停止伺服器") : t("安裝最新測試版(含較新功能,可能不穩定)")}
-          >
-            {verBusy === "beta" ? t("安裝中…") : t("安裝測試版")}
-          </button>
-        </div>
-        <p className="w-full text-xs text-ink-muted">
-          {t("「玩家細節(查看帕魯/背包)」需要 v1.8.0 以上的測試版才支援。")}{t("安裝或更新後,重啟伺服器才會生效。")}
-        </p>
-      </div>
 
       <RestStatusCard
         rest={rest}

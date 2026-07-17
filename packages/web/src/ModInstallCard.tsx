@@ -1,15 +1,14 @@
-import { FiCheck, FiDownload, FiSettings, FiTrash2 } from "react-icons/fi";
+import { FiCheck, FiDownload, FiTrash2 } from "react-icons/fi";
 import { t, useI18n } from "./i18n";
 import { btn, btnGhost, card } from "./ui";
 
 /**
- * 模組/外掛的統一安裝卡(PalDefender、UE4SS、PalSchema 共用同一種造型):
- * icon 左、標題 + 已安裝徽章(含版本)、描述、按鈕列(安裝或更新 / 測試版 /
- * 開啟設定 / 移除)、下方小字備註。各分頁只提供資料與動作,不各自排版,
- * 三張卡才不會長歪。
+ * 模組/外掛的統一安裝卡 —— 與「反作弊插件」分頁的版本卡同一種精簡造型:
+ * 左:標題 + 徽章(已安裝/版本);右:按鈕列(安裝或更新 / 測試版 / 移除);
+ * 下:整寬的說明與備註。PalDefender、UE4SS、PalSchema 三處共用,
+ * 各分頁只提供資料與動作,不各自排版。
  */
 export function ModInstallCard({
-  icon,
   title,
   titleExtra,
   desc,
@@ -23,18 +22,16 @@ export function ModInstallCard({
   updateLabel,
   installTitle,
   onInstallBeta,
-  onOpen,
-  openLabel,
-  openTitle,
   onUninstall,
+  uninstallLabel,
   note,
   children,
 }: {
-  icon: React.ReactNode;
   title: string;
   /** 標題右側的額外徽章(例:贊助者星星)。 */
   titleExtra?: React.ReactNode;
-  desc: string;
+  /** 整寬說明文字(顯示在按鈕列下方)。 */
+  desc?: string;
   installed: boolean;
   version?: string | null;
   /** 伺服器運作中:安裝/移除類動作停用並提示先停止。 */
@@ -49,87 +46,67 @@ export function ModInstallCard({
   installTitle?: string;
   /** 測試版按鈕(有 beta 通道的元件才給)。 */
   onInstallBeta?: () => void;
-  /** 「設定」/ 前往分頁按鈕。 */
-  onOpen?: () => void;
-  openLabel?: string;
-  openTitle?: string;
   onUninstall?: () => void;
-  /** 卡片底部的小字備註。 */
+  uninstallLabel?: string;
+  /** 底部小字備註(desc 之後)。 */
   note?: React.ReactNode;
-  /** 追加內容(警告區塊等),顯示在描述與按鈕之間。 */
+  /** 追加內容(警告區塊等),整寬顯示在 desc 與 note 之間。 */
   children?: React.ReactNode;
 }) {
   useI18n();
   return (
-    <div className={card}>
-      <div className="flex items-start gap-3">
-        {icon}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="inline-flex items-center gap-2 text-base font-extrabold">
-              {title}
-              {titleExtra}
-            </h3>
-            {installed && (
-              <span className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-grass/40 bg-grass/15 px-3 py-1 text-xs font-bold text-grass">
-                <FiCheck className="size-3.5" />
-                {t("已安裝")}{version ? ` ${version}` : ""}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-[13px] text-ink-muted">{desc}</p>
-          {children}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {onInstall && (
-              <button
-                className={`${btn} inline-flex items-center gap-1.5`}
-                onClick={onInstall}
-                disabled={busy || running}
-                title={running ? t("請先停止伺服器") : installTitle}
-              >
-                <FiDownload className="size-4" />
-                {busy
-                  ? busyLabel ?? t("安裝中…")
-                  : installed
-                    ? updateLabel ?? t("更新到最新版")
-                    : installLabel ?? t("安裝穩定版")}
-              </button>
-            )}
-            {onInstallBeta && (
-              <button
-                className={`${btnGhost} inline-flex items-center gap-1.5`}
-                onClick={onInstallBeta}
-                disabled={busy || running}
-                title={running ? t("請先停止伺服器") : t("安裝最新測試版(含較新功能,可能不穩定)")}
-              >
-                {t("安裝測試版")}
-              </button>
-            )}
-            {onOpen && (
-              <button
-                className={`${btnGhost} inline-flex items-center gap-1.5`}
-                onClick={onOpen}
-                title={openTitle}
-              >
-                <FiSettings className="size-4" />
-                {openLabel ?? t("設定")}
-              </button>
-            )}
-            {installed && onUninstall && (
-              <button
-                className={`${btnGhost} inline-flex items-center gap-1.5 text-berry hover:border-berry`}
-                onClick={onUninstall}
-                disabled={busy || running}
-                title={running ? t("請先停止伺服器") : t("移除此模組")}
-              >
-                <FiTrash2 className="size-4" />
-                {busy ? t("處理中…") : t("移除")}
-              </button>
-            )}
-          </div>
-          {note && <p className="mt-2 text-xs text-ink-muted">{note}</p>}
-        </div>
+    <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+      <div className="inline-flex min-w-0 flex-wrap items-center gap-2">
+        <span className="text-sm font-extrabold text-ink-muted">{title}</span>
+        {titleExtra}
+        {installed && (
+          <span className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-grass/40 bg-grass/15 px-3 py-1 text-xs font-bold text-grass">
+            <FiCheck className="size-3.5" />
+            {t("已安裝")}{version ? ` ${version}` : ""}
+          </span>
+        )}
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {onInstall && (
+          <button
+            className={`${btn} inline-flex items-center gap-1.5`}
+            onClick={onInstall}
+            disabled={busy || running}
+            title={running ? t("請先停止伺服器") : installTitle}
+          >
+            <FiDownload className="size-4" />
+            {busy
+              ? busyLabel ?? t("安裝中…")
+              : installed
+                ? updateLabel ?? t("更新到最新版")
+                : installLabel ?? t("安裝穩定版")}
+          </button>
+        )}
+        {onInstallBeta && (
+          <button
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            onClick={onInstallBeta}
+            disabled={busy || running}
+            title={running ? t("請先停止伺服器") : t("安裝最新測試版(含較新功能,可能不穩定)")}
+          >
+            {t("安裝測試版")}
+          </button>
+        )}
+        {installed && onUninstall && (
+          <button
+            className={`${btnGhost} inline-flex items-center gap-1.5 text-berry hover:border-berry`}
+            onClick={onUninstall}
+            disabled={busy || running}
+            title={running ? t("請先停止伺服器") : t("移除此模組")}
+          >
+            <FiTrash2 className="size-4" />
+            {busy ? t("處理中…") : uninstallLabel ?? t("移除")}
+          </button>
+        )}
+      </div>
+      {desc && <p className="w-full text-[13px] text-ink-muted">{desc}</p>}
+      {children && <div className="w-full">{children}</div>}
+      {note && <p className="w-full text-xs text-ink-muted">{note}</p>}
     </div>
   );
 }

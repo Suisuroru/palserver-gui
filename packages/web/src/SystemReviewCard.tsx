@@ -25,7 +25,7 @@ const fmtGB = (n: number) => `${(n / (1 << 30)).toFixed(n >= 100 * (1 << 30) ? 0
 
 function RatingChip({ rating }: { rating: ReviewRating }) {
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${RATING_CLS[rating]}`}>
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold whitespace-nowrap ${RATING_CLS[rating]}`}>
       {t(RATING_LABEL[rating])}
     </span>
   );
