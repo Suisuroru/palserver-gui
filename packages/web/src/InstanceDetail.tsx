@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiArrowLeft, FiPlay, FiSquare, FiRefreshCw, FiSave, FiTerminal, FiFileText, FiX, FiAlertTriangle, FiAlignLeft, FiStar } from "react-icons/fi";
+import { FiArrowLeft, FiPlay, FiPlus, FiSend, FiSettings, FiSquare, FiRefreshCw, FiSave, FiTerminal, FiFileText, FiX, FiAlertTriangle, FiAlignLeft, FiStar } from "react-icons/fi";
 import type {
   InstanceDetail as Detail,
   LogSource,
@@ -53,7 +53,27 @@ export function InstanceDetailPage({
   const [mapFocus, setMapFocus] = useState<{ x: number; y: number; n: number } | null>(null);
   // 分頁偏好每實例獨立;預設集合依模式(建立時選強化 or 實際裝了模組)
   const enhancedMode = detail ? detail.flavor === "modded" || detail.enhancements.length > 0 : false;
-  const [hiddenTabs] = useHiddenTabs(instanceId, enhancedMode);
+  const [hiddenTabs, setHiddenTabs] = useHiddenTabs(instanceId, enhancedMode);
+  // 「＋」快速開啟面板:列出被隱藏(且通過 gating)的分頁,點了立刻顯示並切換過去
+  const [morePanel, setMorePanel] = useState(false);
+  // 面板寬 224px(w-56):＋按鈕靠螢幕右緣時改右對齊,避免小螢幕橫向溢出
+  const [moreAlignRight, setMoreAlignRight] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!morePanel) return;
+    const onDown = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMorePanel(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMorePanel(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [morePanel]);
   // 若目前分頁被使用者在設定裡藏起來,退回總覽,避免停在看不見的分頁。
   useEffect(() => {
     if (!LOCKED_TABS.includes(tab) && hiddenTabs.includes(tab)) setTab("overview");
@@ -341,6 +361,58 @@ export function InstanceDetailPage({
             {translate(t.label)}
           </button>
         ))}
+        {(() => {
+          const discoverable = TABS.filter((tb) => tb.id !== "paldefender" || palDefender)
+            .filter((tb) => tb.id !== "palstats" || SHOW_SPONSOR_FEATURES)
+            .filter((tb) => !LOCKED_TABS.includes(tb.id) && hiddenTabs.includes(tb.id));
+          if (discoverable.length === 0) return null;
+          return (
+            <div ref={moreRef} className="relative">
+              <button
+                type="button"
+                className="inline-flex items-center px-3 py-2 text-sm font-extrabold text-ink-muted transition hover:text-ink"
+                onClick={() => {
+                  const r = moreRef.current?.getBoundingClientRect();
+                  setMoreAlignRight(!!r && r.left + 224 > window.innerWidth - 16);
+                  setMorePanel((v) => !v);
+                }}
+                title={translate("開啟更多分頁")}
+                aria-label={translate("開啟更多分頁")}
+              >
+                <FiPlus className="size-4" />
+              </button>
+              {morePanel && (
+                <div className={`absolute top-full z-30 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border-2 border-line bg-card p-2 shadow-lg ${moreAlignRight ? "right-0" : "left-0"}`}>
+                  <p className="px-2 py-1 text-xs font-extrabold text-ink-muted">{translate("開啟更多分頁")}</p>
+                  {discoverable.map((tb) => (
+                    <button
+                      key={tb.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-bold transition hover:bg-card-soft"
+                      onClick={() => {
+                        setHiddenTabs(hiddenTabs.filter((id) => id !== tb.id));
+                        setTab(tb.id);
+                        setMorePanel(false);
+                      }}
+                    >
+                      <FiPlus className="size-3.5 shrink-0 text-pal" /> {translate(tb.label)}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="mt-1 flex w-full items-center gap-2 rounded-lg border-t-2 border-line px-2 pb-1.5 pt-2 text-left text-xs font-bold text-ink-muted transition hover:text-ink"
+                    onClick={() => {
+                      setTab("instance");
+                      setMorePanel(false);
+                    }}
+                  >
+                    <FiSettings className="size-3.5 shrink-0" /> {translate("到設定管理分頁")}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {tab === "overview" && <OverviewTab client={client} detail={detail} onRefresh={refresh} />}
