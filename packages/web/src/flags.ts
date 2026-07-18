@@ -9,3 +9,6 @@ export const SHOW_SPONSOR_FEATURES = true;
 
 /** 快速傳送全開(存檔解鎖):功能已完成但先隱藏,待 Windows 實機驗證後開放。 */
 export const SHOW_FAST_TRAVEL_UNLOCK = false;
+
+/** 頭目重生時間:UI 已完成,但野外頭目判活(IndividualHandleList)尚未實機驗證,先隱藏分頁。 */
+export const SHOW_BOSS_RESPAWN = false;
