@@ -154,17 +154,21 @@ export function bossRespawnInfo(entry: BossStateEntry | null, nowSec: number): B
     secondsLeft: null,
     measured: false,
   };
-  if (!entry || entry.alive === null) return none;
+  if (!entry) return none;
   if (entry.alive === true) return { ...none, status: "alive" };
-  // alive === false 是「頭目未實例化」,語意曖昧:可能被擊殺、也可能只是附近沒玩家
-  // 觸發生成。只有「觀測到 活→死 轉變、記下 diedAt」才是確定的擊殺;否則一律未知,
-  // 不可武斷顯示「已擊殺」(否則活著沒玩家在旁的頭目會被誤標為已擊殺)。
+  // 「目前已擊殺、尚未重生」用擊殺歷史判定,不看當前 alive:有記錄到擊殺時間(diedAt),
+  // 且該次擊殺晚於最近一次重生(respawnedAt)。這樣頭目遺體被清(alive 變 null)或玩家暫時
+  // 離開該區時,倒數仍持續顯示。只有「觀測到 活→死 轉變」的模組才會記 diedAt,所以
+  // alive=false/null 但沒 diedAt 的(活著卻沒玩家在旁、或沒目擊擊殺)一律維持「未知」。
   const diedAt = entry.diedAt > 0 ? entry.diedAt : null;
-  if (diedAt === null) return none;
-  const measured = entry.respawnInterval > 0;
-  const interval = measured ? entry.respawnInterval : DEFAULT_BOSS_RESPAWN_SECONDS;
-  const respawnAt = diedAt + interval;
-  return { status: "dead", diedAt, respawnAt, secondsLeft: respawnAt - nowSec, measured };
+  const lastRespawn = entry.respawnedAt > 0 ? entry.respawnedAt : -1;
+  if (diedAt !== null && diedAt > lastRespawn) {
+    const measured = entry.respawnInterval > 0;
+    const interval = measured ? entry.respawnInterval : DEFAULT_BOSS_RESPAWN_SECONDS;
+    const respawnAt = diedAt + interval;
+    return { status: "dead", diedAt, respawnAt, secondsLeft: respawnAt - nowSec, measured };
+  }
+  return none;
 }
 
 /** state 是否過時(模組停了或伺服器沒在跑,回報不再更新)。 */

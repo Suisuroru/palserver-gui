@@ -1,9 +1,12 @@
--- PalserverBossReporter v1.0
+-- PalserverBossReporter v1.1
 -- 純伺服器端 UE4SS Lua 模組:每 15 秒輪詢頭目 spawner,輸出狀態到
 --   Pal/Saved/palserver-boss-state.json 供 palserver-gui agent 讀取。
--- 原理(2026-07-18 實測 dump 取得的遊戲內建 API):
+-- 原理(2026-07-19 實機驗證的遊戲內建 API):
 --   - spawner["Is Field Boss or Imprisonment Boss Spawner"](spawner) → 官方頭目判定
---   - spawner:ExistAliveCharacter() → 頭目當前是否存活
+--   - spawner.IndividualHandleList(TArray<UPalIndividualCharacterHandle*>)→ 目前生成的個體;
+--     逐 handle 讀 TryGetIndividualParameter().SaveParameter.HP.Value 判活(HP>0 活、HP==0 死),
+--     讀不到 HP 才退回 TryGetIndividualActor():IsValid()。(tempSpawnedMonster 對活著的頭目也回
+--     false,不可用——2026-07-19 實機證實。)
 --   - 活→死 / 死→活 的轉變由本模組記時間戳(擊殺時間、實測重生時間)
 -- 不改任何遊戲行為;玩家端不需安裝任何東西。
 
@@ -54,6 +57,38 @@ local function loadPrevState()
   log("restored " .. n .. " tracked spawners from previous state")
 end
 
+-- 判活:讀 spawner.IndividualHandleList,逐 handle 以 HP 為準(HP>0 活、HP==0 死=遺體 handle
+-- 仍在);讀不到 HP 才退回角色是否在場。回傳 true/false/nil(nil=沒有個體 handle,未生成/未載入)。
+local function detectAlive(sp)
+  local okHL, hl = pcall(function() return sp.IndividualHandleList end)
+  if not okHL or not hl then return nil end
+  local n = 0
+  pcall(function() n = hl:GetArrayNum() end)
+  if n == 0 then return nil end
+  local hpSeen, bestHp, anyValid = false, 0, false
+  for i = 1, n do
+    local h = hl[i]
+    if h then
+      local okP, param = pcall(function() return h:TryGetIndividualParameter() end)
+      if okP and param then
+        local okHp, hp = pcall(function() return param.SaveParameter.HP.Value end)
+        if okHp and type(hp) == "number" then
+          hpSeen = true
+          if hp > bestHp then bestHp = hp end
+        end
+      end
+      local okA, actor = pcall(function() return h:TryGetIndividualActor() end)
+      if okA and actor then
+        local okV, valid = pcall(function() return actor:IsValid() end)
+        if okV and valid then anyValid = true end
+      end
+    end
+  end
+  if hpSeen then return bestHp > 0 end   -- HP 讀到了:>0 活、==0 死
+  if anyValid then return true end       -- 讀不到 HP 但角色在場 → 活
+  return nil                             -- 都拿不到 → 未知
+end
+
 local function scanOnce()
   tickCount = tickCount + 1
   local ok, spawners = pcall(function() return FindAllOf("BP_PalSpawner_Standard_C") end)
@@ -83,16 +118,7 @@ local function scanOnce()
       bossCount = bossCount + 1
       local name = "?"
       pcall(function() name = sp:GetSpawnerName():ToString() end)
-      -- 屬性判活(BP 函式經 UE4SS 呼叫會 setup 失敗,屬性讀取才可靠):
-      -- tempSpawnedMonster 指向當前生成的頭目個體,有效=活著。
-      local alive = nil
-      do
-        local okM, m = pcall(function() return sp.tempSpawnedMonster end)
-        if okM and m then
-          local okV, valid = pcall(function() return m:IsValid() end)
-          if okV then alive = valid and true or false end
-        end
-      end
+      local alive = detectAlive(sp)
       local x, y, z = 0, 0, 0
       pcall(function()
         local loc = sp:K2_GetActorLocation()
@@ -148,7 +174,7 @@ local function scanOnce()
   end
 end
 
-log("v1.0 loaded; interval " .. INTERVAL_MS .. "ms")
+log("v1.1 loaded; interval " .. INTERVAL_MS .. "ms")
 pcall(loadPrevState)
 LoopAsync(INTERVAL_MS, function()
   ExecuteInGameThread(function()

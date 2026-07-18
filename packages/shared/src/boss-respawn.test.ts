@@ -73,6 +73,25 @@ test("bossRespawnInfo:倒數過期為負值(早該重生但模組尚未觀測到
   assert.ok(r.secondsLeft !== null && r.secondsLeft < 0);
 });
 
+test("bossRespawnInfo:擊殺後遺體被清 alive→null,但 diedAt 已記錄 → 仍顯示已擊殺+倒數", () => {
+  // 實機:頭目 HP 歸零記下 diedAt,之後遺體 handle 被清、alive 變 null;倒數要靠 diedAt 續存。
+  const died = 1000;
+  const r = bossRespawnInfo(entry({ alive: null, diedAt: died }), died + 600);
+  assert.equal(r.status, "dead");
+  assert.equal(r.respawnAt, died + DEFAULT_BOSS_RESPAWN_SECONDS);
+  assert.equal(r.secondsLeft, DEFAULT_BOSS_RESPAWN_SECONDS - 600);
+});
+
+test("bossRespawnInfo:死後又重生(respawnedAt 晚於 diedAt)、現在沒人在旁 → 未知,不是已擊殺", () => {
+  const r = bossRespawnInfo(entry({ alive: null, diedAt: 1000, respawnedAt: 2000 }), 3000);
+  assert.equal(r.status, "unknown");
+});
+
+test("bossRespawnInfo:死後又重生、現在觀測到活著 → 活著", () => {
+  const r = bossRespawnInfo(entry({ alive: true, diedAt: 1000, respawnedAt: 2000 }), 3000);
+  assert.equal(r.status, "alive");
+});
+
 test("matchReportedBoss:半徑內取最近,半徑外回 null", () => {
   // 造一個地圖座標 (0,0) 的 spawner:savToMap 反解 → savX=-123888, savY=158000
   const atOrigin = entry({ x: -123888, y: 158000 });
