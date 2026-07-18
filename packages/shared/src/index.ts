@@ -9,6 +9,7 @@ export * from "./paldefender-options.js";
 export * from "./pal-stats-options.js";
 export * from "./features.js";
 export * from "./world-presets.js";
+export * from "./boss-respawn.js";
 export * from "./map-helpers.js";
 export * from "./pal-avatars.generated.js";
 

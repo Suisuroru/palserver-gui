@@ -78,9 +78,9 @@ export default function MapPageClient() {
   const [showOffline, setShowOffline] = useState(false);
   const [showBases, setShowBases] = useState(true);
   const [showLandmarks, setShowLandmarks] = useState(true);
-  // 野外頭目預設開:跟 GUI 的呈現方式一致性優先於「預設收合」——這裡沒有 GUI 那邊的
-  // 贊助者 gating(靜態資料,人人可見),沒有理由預設藏起來。
-  const [showBosses, setShowBosses] = useState(true);
+  // 野外頭目預設關:主世界有 83 個 Alpha,紅框頭像全開會鋪滿整張圖、蓋掉玩家/據點,
+  // 使用者要看再自己開(呈現方式仍與 GUI 一致,只是預設收合)。
+  const [showBosses, setShowBosses] = useState(false);
   // 礦物層預設關:~3.9k 個點,手機效能考量,使用者要看再自己開。
   const [showOres, setShowOres] = useState(false);
 

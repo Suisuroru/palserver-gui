@@ -59,6 +59,7 @@ import { checkPorts, udpPortFree } from "./port-check.js";
 import { runtimePortFree } from "./runtime-port-check.js";
 import * as pakMods from "./pak-mods.js";
 import { clearPalStats, getPalSchemaStatus, getPalStats, installPalSchema, removePalSchema, writePalStats, setPalSchemaEnabled } from "./palschema.js";
+import { getBossReporterStatus, installBossReporter, removeBossReporter } from "./boss-reporter.js";
 import { getModerationLists, moderation } from "./moderation.js";
 import { getLiveStatus, rest } from "./restapi.js";
 import * as files from "./files.js";
@@ -1729,6 +1730,37 @@ export function registerRoutes(
   app.delete("/api/instances/:id/pal-stats", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
     return await clearPalStats(rec, ctxOf(rec));
+  });
+
+  // ── 頭目重生時間(贊助者先行版 boss-respawn;純伺服器端 UE4SS Lua 模組)──
+  app.get("/api/instances/:id/boss-respawns", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return await getBossReporterStatus(rec, ctxOf(rec));
+  });
+
+  app.post("/api/instances/:id/boss-respawns/install", async (req, reply) => {
+    if (!featureEnabled("boss-respawn")) {
+      return reply.code(403).send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    // 執行中 UE4SS DLL 被鎖,無法覆寫/建立(同 PalSchema)。
+    if (await isRunning(rec)) {
+      return reply.code(409).send({ error: "請先停止伺服器再安裝頭目回報模組(執行中時檔案被鎖定)" });
+    }
+    const { version } = await installBossReporter(rec, ctxOf(rec));
+    return { installed: "boss-reporter", version, applied: "on-next-restart" };
+  });
+
+  app.post("/api/instances/:id/boss-respawns/uninstall", async (req, reply) => {
+    if (!featureEnabled("boss-respawn")) {
+      return reply.code(403).send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    if (await isRunning(rec)) {
+      return reply.code(409).send({ error: "請先停止伺服器再移除頭目回報模組(執行中時檔案被鎖定)" });
+    }
+    await removeBossReporter(rec, ctxOf(rec));
+    return { removed: "boss-reporter" };
   });
 
   // ── config-file health & regeneration ──

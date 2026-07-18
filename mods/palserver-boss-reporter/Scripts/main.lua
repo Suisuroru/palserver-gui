@@ -1,4 +1,4 @@
--- PalserverBossReporter v0.5
+-- PalserverBossReporter v1.0
 -- 純伺服器端 UE4SS Lua 模組:每 15 秒輪詢頭目 spawner,輸出狀態到
 --   Pal/Saved/palserver-boss-state.json 供 palserver-gui agent 讀取。
 -- 原理(2026-07-18 實測 dump 取得的遊戲內建 API):
@@ -10,6 +10,9 @@
 local MOD = "[BossReporter]"
 local INTERVAL_MS = 15000
 local STATE_PATH = "../../Saved/palserver-boss-state.json"  -- cwd = Pal/Binaries/Win64
+-- 死→活轉變若中間觀測有斷過(spawner 曾從 FindAllOf 消失=區域卸載),算出的
+-- 間隔會含卸載空窗而灌水;只有連續觀測(距上次見到 <= 這個秒數)才採信實測冷卻。
+local CONTINUITY_SEC = 45  -- 3× 輪詢間隔,容忍偶爾漏掃一次
 
 local tickCount = 0
 local track = {}   -- name -> { alive, diedAt, respawnedAt, lastSeen }
@@ -27,12 +30,16 @@ local function loadPrevState()
   local body = f:read("*a")
   f:close()
   local n = 0
-  for name, alive, diedAt, respawnedAt in
-    body:gmatch('{"name":"(.-)","alive":(%a+),"diedAt":(-?%d+),"respawnedAt":(-?%d+)') do
+  for name, alive, diedAt, respawnedAt, respawnInterval in
+    body:gmatch('{"name":"(.-)","alive":(%a+),"diedAt":(-?%d+),"respawnedAt":(-?%d+),"respawnInterval":(-?%d+)') do
+    -- 三態還原:"null" → nil(未知),不可誤標為 false(已擊殺)。
+    local av
+    if alive == "true" then av = true elseif alive == "false" then av = false end
     track[name] = {
-      alive = (alive == "true"),
+      alive = av,
       diedAt = tonumber(diedAt),
       respawnedAt = tonumber(respawnedAt),
+      respawnInterval = tonumber(respawnInterval),
       lastSeen = 0,
     }
     n = n + 1
@@ -79,17 +86,6 @@ local function scanOnce()
           if okV then alive = valid and true or false end
         end
       end
-      if tickCount == 1 then
-        pcall(function()
-          local m = sp.tempSpawnedMonster
-          log("diag tempSpawnedMonster valid=" .. tostring(m and m:IsValid()) ..
-              " full=" .. tostring(m and m:IsValid() and m:GetFullName() or "-"))
-        end)
-        pcall(function()
-          local hl = sp.IndividualHandleList
-          log("diag HandleList class=" .. tostring(hl and hl:GetClass():GetFName():ToString() or "nil"))
-        end)
-      end
       local x, y, z = 0, 0, 0
       pcall(function()
         local loc = sp:K2_GetActorLocation()
@@ -98,7 +94,7 @@ local function scanOnce()
 
       local t = track[name]
       if not t then
-        t = { alive = alive, diedAt = -1, respawnedAt = -1, lastSeen = now }
+        t = { alive = alive, diedAt = -1, respawnedAt = -1, respawnInterval = -1, lastSeen = now }
         track[name] = t
       end
       if alive ~= nil then
@@ -107,8 +103,14 @@ local function scanOnce()
           log("boss DOWN: " .. name .. " at " .. now)
         elseif t.alive == false and alive == true then
           t.respawnedAt = now
-          if t.diedAt and t.diedAt > 0 then
-            log("boss RESPAWNED: " .. name .. " after " .. (now - t.diedAt) .. "s")
+          -- 只有「死→活」期間持續觀測(spawner 未卸載)才採信實測冷卻:中間若 spawner
+          -- 曾從 FindAllOf 消失(無玩家),lastSeen 會過期,now-diedAt 會含卸載空窗而灌水,
+          -- 寧可不記、退回預設倒數。t.lastSeen 此時為「上次見到這隻」的時間。
+          if t.diedAt and t.diedAt > 0 and (now - t.lastSeen) <= CONTINUITY_SEC then
+            t.respawnInterval = now - t.diedAt
+            log("boss RESPAWNED: " .. name .. " after " .. t.respawnInterval .. "s (continuous)")
+          else
+            log("boss RESPAWNED: " .. name .. " (interval not trusted — observation gap)")
           end
         end
         t.alive = alive
@@ -117,8 +119,8 @@ local function scanOnce()
 
       local aliveStr = alive == nil and "null" or tostring(alive)
       entries[#entries + 1] = string.format(
-        '{"name":"%s","alive":%s,"diedAt":%d,"respawnedAt":%d,"x":%.1f,"y":%.1f,"z":%.1f}',
-        jsonEscape(name), aliveStr, t.diedAt or -1, t.respawnedAt or -1, x, y, z)
+        '{"name":"%s","alive":%s,"diedAt":%d,"respawnedAt":%d,"respawnInterval":%d,"x":%.1f,"y":%.1f,"z":%.1f}',
+        jsonEscape(name), aliveStr, t.diedAt or -1, t.respawnedAt or -1, t.respawnInterval or -1, x, y, z)
       if alive then aliveCount = aliveCount + 1 end
     end
   end
@@ -139,7 +141,7 @@ local function scanOnce()
   end
 end
 
-log("v0.4 loaded; interval " .. INTERVAL_MS .. "ms")
+log("v1.0 loaded; interval " .. INTERVAL_MS .. "ms")
 pcall(loadPrevState)
 LoopAsync(INTERVAL_MS, function()
   ExecuteInGameThread(function()
@@ -148,3 +150,5 @@ LoopAsync(INTERVAL_MS, function()
   end)
   return false
 end)
+
+

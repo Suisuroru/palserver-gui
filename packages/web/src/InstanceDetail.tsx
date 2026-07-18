@@ -11,6 +11,7 @@ import { SettingsEditor } from "./SettingsEditor";
 import { ModsTab } from "./ModsTab";
 import { PalDefenderTab } from "./PalDefenderTab";
 import { PalStatsTab } from "./PalStatsTab";
+import { BossRespawnTab } from "./BossRespawnTab";
 import { BreedingTab } from "./BreedingTab";
 import { PlayersTab } from "./PlayersTab";
 import { GuildsTab } from "./GuildsTab";
@@ -460,7 +461,7 @@ export function InstanceDetailPage({
         const orderedTabs = tabOrder
           .map((id) => TABS.find((tb) => tb.id === id))
           .filter((tb): tb is (typeof TABS)[number] => !!tb)
-          .filter((tb) => tb.id !== "palstats" || SHOW_SPONSOR_FEATURES);
+          .filter((tb) => (tb.id !== "palstats" && tb.id !== "bossrespawn") || SHOW_SPONSOR_FEATURES);
         const visibleTabs = orderedTabs.filter((tb) => LOCKED_TABS.includes(tb.id) || !hiddenTabs.includes(tb.id));
         const manageable = orderedTabs.filter((tb) => !LOCKED_TABS.includes(tb.id));
         const onDragEnd = (e: DragEndEvent) => {
@@ -605,6 +606,7 @@ export function InstanceDetailPage({
         <PalDefenderTab client={client} instanceId={detail.id} running={detail.status === "running"} />
       )}
       {tab === "palstats" && <PalStatsTab client={client} instanceId={detail.id} running={detail.status === "running"} />}
+      {tab === "bossrespawn" && <BossRespawnTab client={client} instanceId={detail.id} running={detail.status === "running"} />}
       {tab === "breeding" && <BreedingTab client={client} instanceId={detail.id} />}
       {tab === "saves" && (
         <SavesTab client={client} instanceId={detail.id} running={detail.status === "running"} />

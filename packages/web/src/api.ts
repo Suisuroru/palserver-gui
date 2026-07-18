@@ -33,6 +33,7 @@ import type {
   PalDefenderConfigStatus,
   PalSchemaStatus,
   PalStatsStatus,
+  BossRespawnStatus,
   PalStatValues,
   PdGuildList,
   PdGuildDetail,
@@ -627,6 +628,20 @@ export class AgentClient {
   /** 清空所有物種數值調整(改回原本設定)。非贊助者也可用。 */
   clearPalStats(id: string): Promise<PalStatsStatus> {
     return this.request(`/api/instances/${id}/pal-stats`, { method: "DELETE" });
+  }
+
+  /** 頭目重生時間(PalserverBossReporter Lua 模組)狀態 + 最新回報。 */
+  bossRespawns(id: string): Promise<BossRespawnStatus> {
+    return this.request(`/api/instances/${id}/boss-respawns`);
+  }
+
+  /** 安裝/更新頭目回報模組(必要時一併裝 UE4SS)。需先停伺服器(409);非贊助者回 403。 */
+  installBossReporter(id: string): Promise<{ installed: string; version: string; applied: string }> {
+    return this.request(`/api/instances/${id}/boss-respawns/install`, { method: "POST" });
+  }
+
+  uninstallBossReporter(id: string): Promise<{ removed: string }> {
+    return this.request(`/api/instances/${id}/boss-respawns/uninstall`, { method: "POST" });
   }
 
   configHealth(id: string): Promise<ConfigHealth> {

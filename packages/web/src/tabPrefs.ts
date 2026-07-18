@@ -13,6 +13,7 @@ export type Tab =
   | "mods"
   | "paldefender"
   | "palstats"
+  | "bossrespawn"
   | "breeding"
   | "saves"
   | "restart"
@@ -31,6 +32,7 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "mods", label: "模組" },
   { id: "paldefender", label: "反作弊插件" },
   { id: "palstats", label: "帕魯數值調整" },
+  { id: "bossrespawn", label: "頭目重生" },
   { id: "breeding", label: "配種計算" },
   { id: "saves", label: "存檔備份" },
   { id: "restart", label: "伺服器重啟" },
@@ -176,6 +178,7 @@ export const OVERVIEW_CARDS: { id: string; label: string }[] = [
 export const DISMISSIBLE_WARNINGS: { id: string; label: string }[] = [
   { id: "warn-mods-compat", label: "模組:改版相容性提醒" },
   { id: "warn-palstats-risk", label: "帕魯數值:mod 風險提示" },
+  { id: "warn-bossrespawn-risk", label: "頭目重生:mod 風險提示" },
 ];
 
 /** 推廣型卡片(代管維護等) —— 可按叉叉收起。 */
