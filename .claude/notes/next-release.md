@@ -3,7 +3,7 @@
 ## 配種計算(PR #43 已合併 + 收尾)
 - feat:PalCalc 配種計算分頁(UCKETX,PR #43):存檔掃描全服帕魯→最短配種路線樹狀圖。
 - 已納入贊助者功能(breeding-calc);審查後修正:計算中提示真的會顯示(雙層 rAF)、改條件清舊結果、掃描輪詢斷線停止+unmount 清理、配方 2.3MB 模組級快取、機率性遺傳免責文案、EmptyState 統一、四語 README 同步。
-- 待辦:pals.json 落後 PalCalc v26(12 物種缺名稱/圖示,見 docs/game-data-maintenance.md);同步求解未來可移 Web Worker;self-only 物種無解提示可再精準。
+- 已補:pals.json 302 筆(屋久島/泰拉瑞亞聯動 12 筆含四語名+圖示);新分頁對自訂過清單的使用者也預設隱藏(knownTabs 遷移)。待辦:同步求解未來可移 Web Worker;self-only 物種無解提示可再精準。
 
 v2.4.1 已發布(2026-07-18:玩家頁改 WebSocket 推播 PR#39(LilaS-tw,含審查後 4 修:新鮮 rec/刪除收攤/輪詢兜底/錯誤字串化);反作弊插件 tab 消失修復(PalDefender 已安裝→分頁預設顯示))。
 
