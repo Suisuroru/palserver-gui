@@ -6,6 +6,7 @@ import {
   isWorldTreeCoord,
   assignReportedBosses,
   bossRespawnInfo,
+  bossStateMapCoord,
   dungeonBossInfo,
   type BossRespawnStatus,
   type BossStateEntry,
@@ -67,6 +68,8 @@ export function BossRespawnTab({
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [status, setStatus] = useState<BossRespawnStatus | null>(null);
   const [bosses, setBosses] = useState<FrameBoss[] | null>(null);
+  // 固定地城→頭目帕魯對照(dungeon-bosses.json,地圖座標;用來把回報的地城配到頭目 icon/名稱)。
+  const [dungeonCatalog, setDungeonCatalog] = useState<Boss[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -111,6 +114,15 @@ export function BossRespawnTab({
         load("/game-data/worldtree-bosses.json", "tree"),
       ]);
       if (alive) setBosses([...main, ...tree]);
+      try {
+        const r = await fetch("/game-data/dungeon-bosses.json");
+        if (r.ok && alive) {
+          const arr = (await r.json()) as Boss[];
+          if (Array.isArray(arr)) setDungeonCatalog(arr);
+        }
+      } catch {
+        /* 缺檔=舊資料包,地城改用地城名+城堡圖示 */
+      }
     })();
     return () => {
       alive = false;
@@ -187,18 +199,34 @@ export function BossRespawnTab({
   interface DRow {
     d: DungeonBossEntry;
     info: ReturnType<typeof dungeonBossInfo>;
+    catalog: Boss | null;
     sortKey: number;
   }
   const dungeonRows = useMemo<DRow[]>(() => {
+    // 地城回報的是世界座標 → 轉地圖座標配對 dungeon-bosses.json(實測誤差 0~1,給 40 容差)。
+    const matchCatalog = (d: DungeonBossEntry): Boss | null => {
+      if (!dungeonCatalog.length) return null;
+      const m = bossStateMapCoord(d);
+      let best: Boss | null = null;
+      let bd = 40;
+      for (const c of dungeonCatalog) {
+        const dist = Math.hypot(c.x - m.x, c.y - m.y);
+        if (dist <= bd) {
+          bd = dist;
+          best = c;
+        }
+      }
+      return best;
+    };
     return dungeons
       .map((d) => {
         const info = dungeonBossInfo(d, now);
         // 重生中(最快先)< 存活
         const sortKey = info.status === "dead" && info.secondsLeft !== null ? info.secondsLeft : 1e12;
-        return { d, info, sortKey };
+        return { d, info, catalog: matchCatalog(d), sortKey };
       })
       .sort((a, b) => a.sortKey - b.sortKey);
-  }, [dungeons, now]);
+  }, [dungeons, dungeonCatalog, now]);
   const dungeonDead = dungeonRows.filter((r) => r.info.status === "dead").length;
   const shownDungeons = dungeonOnlyDead ? dungeonRows.filter((r) => r.info.status === "dead") : dungeonRows;
 
@@ -384,7 +412,7 @@ export function BossRespawnTab({
                   </p>
                   <div className="flex flex-col gap-2">
                     {shownDungeons.map((r) => (
-                      <DungeonRow key={`${r.d.name}:${r.d.x},${r.d.y}`} row={r} />
+                      <DungeonRow key={`${r.d.name}:${r.d.x},${r.d.y}`} row={r} lang={lang} />
                     ))}
                     {dungeonRows.length === 0 ? (
                       <EmptyState icon={<GiCastle />}>{t("目前沒有地下城頭目資料。")}</EmptyState>
@@ -406,18 +434,28 @@ export function BossRespawnTab({
 
 function DungeonRow({
   row,
+  lang,
 }: {
-  row: { d: DungeonBossEntry; info: ReturnType<typeof dungeonBossInfo> };
+  row: { d: DungeonBossEntry; info: ReturnType<typeof dungeonBossInfo>; catalog: Boss | null };
+  lang: ReturnType<typeof getLang>;
 }) {
-  const { d, info } = row;
+  const { d, info, catalog } = row;
+  // 有對照到頭目帕魯 → 顯示帕魯頭像 + 頭目名;地城名降為副標。沒對到 → 城堡圖示 + 地城名。
+  const iconUrl = catalog?.icon ? palIconUrl(catalog.icon) : null;
+  const title = catalog ? bossName(catalog, lang) : d.name || t("地下城");
+  const sub = [d.level > 0 ? `Lv.${d.level}` : "", catalog && d.name ? d.name : ""].filter(Boolean).join(" · ");
   return (
     <div className={`${card} flex items-center gap-3 !p-3`}>
-      <div className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-line bg-card-soft">
-        <GiCastle className="size-5 text-ink-muted" />
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-line bg-card-soft">
+        {iconUrl ? (
+          <img src={iconUrl} alt="" className="size-full object-cover" />
+        ) : (
+          <GiCastle className="size-5 text-ink-muted" />
+        )}
       </div>
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-sm font-extrabold">{d.name || t("地下城")}</span>
-        <span className="text-xs text-ink-muted">{d.level > 0 ? `Lv.${d.level}` : t("地下城")}</span>
+        <span className="truncate text-sm font-extrabold">{title}</span>
+        <span className="text-xs text-ink-muted">{sub || t("地下城")}</span>
       </div>
       <div className="ml-auto text-right">
         {info.status === "alive" ? (
