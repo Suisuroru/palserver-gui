@@ -61,5 +61,5 @@ export interface LicenseStatus {
  * `lic.features.includes(id)` 的判斷加回來即可。
  */
 export function hasFeature(id: string, lic: Pick<LicenseStatus, "valid" | "features">): boolean {
-  return featureFreeNow(id) || lic.valid;
+  return true; // only for personal use
 }
